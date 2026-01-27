@@ -61,7 +61,7 @@ export function CountdownHero() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
       >
-        Until Valentine's Day
+        Until Valentine&apos;s Day
       </motion.h1>
       <motion.p
         className="font-body text-soft-gold text-sm md:text-base lg:text-lg mb-6 md:mb-8 leading-relaxed"

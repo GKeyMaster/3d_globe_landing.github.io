@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
 import { DayItem } from "@/data/days";
 import { isDayRevealed, setDayRevealed } from "@/lib/storage";
 
@@ -19,7 +20,7 @@ export function RevealPanel({ items, dayNumber }: RevealPanelProps) {
       setIsRevealed(true);
       setRevealedItems(items.map((_, i) => i));
     }
-  }, [dayNumber, items.length]);
+  }, [dayNumber, items]);
 
   const handleReveal = () => {
     setIsRevealed(true);
@@ -61,10 +62,11 @@ export function RevealPanel({ items, dayNumber }: RevealPanelProps) {
             transition={{ duration: 0.5 }}
           >
             <div className="relative aspect-square bg-near-black">
-              <img
+              <Image
                 src={item.src}
                 alt={item.alt}
-                className="w-full h-full object-cover"
+                fill
+                className="object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
             </div>
@@ -168,7 +170,7 @@ export function RevealPanel({ items, dayNumber }: RevealPanelProps) {
               </span>
             </motion.button>
             <p className="mt-4 md:mt-5 font-body text-soft-gold/60 text-xs md:text-sm leading-relaxed tracking-normal">
-              Tap to reveal today's content
+              Tap to reveal today&apos;s content
             </p>
           </motion.div>
         ) : (

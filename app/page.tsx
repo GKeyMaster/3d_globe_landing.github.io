@@ -12,7 +12,7 @@ export default function Home() {
             <SwanLogo className="w-24 h-24 md:w-32 md:h-32 lg:w-40 lg:h-40 mx-auto mb-3 md:mb-4" />
           </Link>
           <h1 className="font-heading text-2xl md:text-4xl lg:text-5xl xl:text-6xl text-white mb-2 md:mb-3 leading-tight tracking-tight px-4">
-            Valentine's Countdown
+            Valentine&apos;s Countdown
           </h1>
           <p className="font-body text-sm md:text-base lg:text-lg text-soft-gold/80 max-w-2xl mx-auto leading-relaxed px-4">
             A journey of 15 days, 444 moments, and countless reasons why you mean
