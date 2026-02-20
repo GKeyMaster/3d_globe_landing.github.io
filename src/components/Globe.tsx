@@ -4,6 +4,7 @@ import { createViewer } from '../lib/cesium/createViewer'
 import { VenueMarkerManager } from '../lib/cesium/markerUtils'
 import { PremiumCameraManager } from '../lib/cesium/cameraUtils'
 import { RouteManager } from '../lib/cesium/addRoute'
+import { BuildingManager } from '../lib/cesium/buildingUtils'
 import type { Stop } from '../lib/data/types'
 
 interface GlobeProps {
@@ -29,6 +30,7 @@ export function Globe({
   const markerManagerRef = useRef<VenueMarkerManager | null>(null)
   const cameraManagerRef = useRef<PremiumCameraManager | null>(null)
   const routeManagerRef = useRef<RouteManager | null>(null)
+  const buildingManagerRef = useRef<BuildingManager | null>(null)
   const initOnceRef = useRef(false)
   const [isReady, setIsReady] = useState(false)
 
@@ -84,6 +86,9 @@ export function Globe({
           markerManagerRef.current.setOnMarkerClick(onSelectStop)
         }
 
+        // Initialize building manager
+        buildingManagerRef.current = new BuildingManager(result.viewer)
+
         // Routes are now always visible - no camera change listener needed
         
         // Set initial camera position if we have stops
@@ -122,6 +127,10 @@ export function Globe({
       if (markerManagerRef.current) {
         markerManagerRef.current.destroy()
         markerManagerRef.current = null
+      }
+      if (buildingManagerRef.current) {
+        buildingManagerRef.current.clearAllBuildings()
+        buildingManagerRef.current = null
       }
       if (viewerRef.current) {
         viewerRef.current.destroy()
@@ -200,6 +209,31 @@ export function Globe({
       }
     }
   }, [selectedStopId, stops, isReady])
+
+  // Load buildings when a stop is selected
+  useEffect(() => {
+    if (buildingManagerRef.current && selectedStopId && stops.length > 0 && isReady) {
+      const selectedStop = stops.find(stop => stop.id === selectedStopId)
+      if (selectedStop) {
+        console.log(`[Globe] Loading buildings for selected stop: ${selectedStop.city}`)
+        buildingManagerRef.current.loadBuildingsForStop(selectedStop).catch(error => {
+          console.warn(`[Globe] Failed to load buildings for ${selectedStop.city}:`, error)
+        })
+      }
+    }
+  }, [selectedStopId, stops, isReady])
+
+  // Load buildings for all stops on initial load (optional - for overview)
+  useEffect(() => {
+    if (buildingManagerRef.current && stops.length > 0 && isReady) {
+      console.log('[Globe] Pre-loading buildings for all stops')
+      stops.forEach(stop => {
+        buildingManagerRef.current?.loadBuildingsForStop(stop).catch(error => {
+          console.warn(`[Globe] Failed to pre-load buildings for ${stop.city}:`, error)
+        })
+      })
+    }
+  }, [stops, isReady])
 
   return (
     <>

@@ -125,8 +125,11 @@ async function generateStops() {
     const excelPath = path.join(process.cwd(), 'data', 'Cities, Venues.xlsx')
     if (!fs.existsSync(excelPath)) {
       console.error('❌ Excel file not found at:', excelPath)
-      console.log('📝 Please place the Excel file at: data/Cities, Venues.xlsx')
-      process.exit(1)
+      console.error('')
+      console.error('Solutions:')
+      console.error('1. Commit data/Cities, Venues.xlsx to your repository')
+      console.error('2. Or use pre-generated data: set SKIP_DATA_GEN=1 and commit public/data/** artifacts')
+      throw new Error('Missing required Excel file for data generation')
     }
     
     // Read Excel file

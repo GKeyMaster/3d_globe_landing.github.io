@@ -5,13 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node ./node_modules/typescript/bin/tsc && node ./node_modules/vite/bin/vite.js build",
+    "prebuild": "node scripts/prebuild.mjs",
+    "build": "vite build",
     "preview": "vite preview",
     "deploy": "npm run build && npx wrangler deploy --assets=./dist",
     "deploy:vercel": "npm run build && npx vercel --prod",
-    "data:v1": "node ./node_modules/typescript/bin/tsc scripts/generate-stops.ts --outDir scripts/dist --target ES2020 --module ES2020 --moduleResolution node && node scripts/dist/generate-stops.js"
+    "data:v1": "tsx scripts/generate-stops.ts",
+    "data:buildings:v1": "tsx scripts/fetch-buildings.ts"
   },
   "devDependencies": {
+    "@types/node-fetch": "^2.6.13",
+    "tsx": "^4.21.0",
     "typescript": "~5.9.3",
     "vite": "^7.3.1"
   },
@@ -22,6 +26,8 @@
     "@vitejs/plugin-react": "^5.1.4",
     "cesium": "^1.138.0",
     "lucide-react": "^0.575.0",
+    "node-fetch": "^3.3.2",
+    "osmtogeojson": "^3.0.0-beta.5",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "vite-plugin-static-copy": "^3.2.0",
