@@ -88,6 +88,8 @@ export class RouteManager {
           taperPower: new ConstantProperty(1.0),
           color: new ConstantProperty(Color.fromCssColorString('#D4AF37').withAlpha(0.7))
         }),
+        // Ensure stable rendering during imagery changes
+        show: new ConstantProperty(true),
         zIndex: 1000, // Render above terrain but below markers
         distanceDisplayCondition: undefined
       },
@@ -132,23 +134,19 @@ export class RouteManager {
    * Updates route visibility based on camera distance for elegant presentation
    */
   updateRouteVisibility(): void {
-    const cameraHeight = this.viewer.camera.positionCartographic.height
-    
-    // Show route when zoomed out enough to see the tour overview
-    // More permissive range to prevent blinking
-    const shouldShowRoute = cameraHeight > 500000 // Show when >500km altitude
+    // Always show routes - remove altitude-based hiding to prevent blinking
+    // Routes are now always visible for consistent user experience
+    const shouldShowRoute = true
     
     this.routeEntities.forEach(entity => {
       if (entity.polyline) {
         entity.show = shouldShowRoute
         
-        // Stable opacity - no dynamic changes to prevent blinking
-        if (shouldShowRoute) {
-          const material = entity.polyline.material as PolylineGlowMaterialProperty
-          if (material) {
-            // Keep consistent deep golden color
-            material.color = new ConstantProperty(Color.fromCssColorString('#D4AF37').withAlpha(0.95))
-          }
+        // Maintain stable appearance regardless of camera or imagery changes
+        const material = entity.polyline.material as PolylineGlowMaterialProperty
+        if (material) {
+          // Keep consistent deep golden color
+          material.color = new ConstantProperty(Color.fromCssColorString('#D4AF37').withAlpha(0.95))
         }
       }
     })

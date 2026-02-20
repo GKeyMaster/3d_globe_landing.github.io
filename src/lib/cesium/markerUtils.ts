@@ -301,15 +301,10 @@ export class VenueMarkerManager {
         this.markers.set(stop.id, marker)
       }
       
-      // Handle selection indicator
+      // Selection indicators disabled - using only marker visual changes
+      // Remove any existing selection indicators
       const existingIndicator = this.selectionIndicators.get(stop.id)
-      if (isSelected && !existingIndicator) {
-        // Add selection indicator
-        const indicator = createSelectionIndicator(stop)
-        this.viewer.entities.add(indicator)
-        this.selectionIndicators.set(stop.id, indicator)
-      } else if (!isSelected && existingIndicator) {
-        // Remove selection indicator
+      if (existingIndicator) {
         this.viewer.entities.remove(existingIndicator)
         this.selectionIndicators.delete(stop.id)
       }

@@ -94,6 +94,14 @@ export function Globe({
         // Set initial camera position if we have stops
         if (stops.length > 0) {
           cameraManagerRef.current.setInitialPosition(stops)
+          
+          // Initialize markers and routes immediately if stops are available
+          console.log('[Globe] Initializing markers and routes on viewer creation')
+          markerManagerRef.current.updateMarkers(stops, selectedStopId)
+          
+          if (stops.length > 1) {
+            routeManagerRef.current.addTourRoute(stops)
+          }
         }
         
         onReadyCallback(result.viewer, cameraManagerRef.current!)
@@ -136,18 +144,35 @@ export function Globe({
     }
   }, [onReadyCallback, isReady])
 
-  // Update markers and routes when stops change
+  // Update markers and routes when stops change or viewer becomes ready
   useEffect(() => {
-    if (markerManagerRef.current && stops.length > 0) {
+    if (markerManagerRef.current && stops.length > 0 && isReady) {
       console.log('[Globe] Updating markers for stops')
       markerManagerRef.current.updateMarkers(stops, selectedStopId)
     }
     
-    if (routeManagerRef.current && stops.length > 1) {
+    if (routeManagerRef.current && stops.length > 1 && isReady) {
       console.log('[Globe] Updating route for stops')
       routeManagerRef.current.addTourRoute(stops)
     }
-  }, [stops, selectedStopId])
+  }, [stops, selectedStopId, isReady])
+
+  // Initialize markers and routes when both viewer is ready and stops are available
+  useEffect(() => {
+    if (isReady && stops.length > 0) {
+      console.log('[Globe] Viewer and stops ready - initializing markers and routes')
+      
+      // Initialize markers
+      if (markerManagerRef.current) {
+        markerManagerRef.current.updateMarkers(stops, selectedStopId)
+      }
+      
+      // Initialize routes
+      if (routeManagerRef.current && stops.length > 1) {
+        routeManagerRef.current.addTourRoute(stops)
+      }
+    }
+  }, [isReady, stops]) // Run when either viewer becomes ready OR stops data arrives
 
   // Set initial overview position when stops are first loaded
   useEffect(() => {
