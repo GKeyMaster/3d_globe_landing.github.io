@@ -12,11 +12,11 @@ export default defineConfig({
           dest: 'cesium'
         },
         {
-          src: 'node_modules/cesium/Build/Cesium/ThirdParty',
+          src: 'node_modules/cesium/Build/Cesium/Assets',
           dest: 'cesium'
         },
         {
-          src: 'node_modules/cesium/Build/Cesium/Assets',
+          src: 'node_modules/cesium/Build/Cesium/ThirdParty',
           dest: 'cesium'
         },
         {
@@ -29,15 +29,7 @@ export default defineConfig({
   define: {
     CESIUM_BASE_URL: JSON.stringify('/cesium')
   },
-  build: {
-    target: 'esnext',
-    sourcemap: false,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          cesium: ['cesium']
-        }
-      }
-    }
+  optimizeDeps: {
+    include: ['cesium']
   }
 })

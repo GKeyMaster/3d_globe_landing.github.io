@@ -1,32 +1,21 @@
-/* Reset & Base Styles */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+/* Reset and Base Styles */
+* {
   margin: 0;
   padding: 0;
+  box-sizing: border-box;
 }
 
-html {
+html, body {
   height: 100%;
-  font-size: 16px;
-}
-
-body {
-  height: 100%;
-  font-family: var(--font-family-primary);
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-normal);
-  line-height: var(--line-height-normal);
-  color: var(--color-white);
-  background: var(--color-black);
   overflow: hidden;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  font-family: var(--font-family);
+  background: var(--bg);
+  color: var(--text);
 }
 
 #root {
   height: 100%;
+  width: 100%;
 }
 
 /* App Layout */
@@ -37,79 +26,58 @@ body {
   overflow: hidden;
 }
 
-/* Globe Container */
 .globe-container {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 1;
+  z-index: var(--z-globe);
 }
 
-.globe-container canvas {
-  display: block;
-  width: 100% !important;
-  height: 100% !important;
-}
-
-/* Overlay Container */
-.overlay-container {
+.ui-overlay {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: var(--z-modal);
+  z-index: var(--z-ui);
   pointer-events: none;
 }
 
-.overlay-container > * {
+.ui-overlay > * {
   pointer-events: auto;
 }
 
-/* Loading Veil */
+/* Loading States */
 .loading-veil {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(
-    135deg,
-    rgba(0, 0, 0, 0.95) 0%,
-    rgba(17, 24, 39, 0.9) 50%,
-    rgba(0, 0, 0, 0.95) 100%
-  );
-  backdrop-filter: var(--glass-blur);
-  z-index: var(--z-modal-backdrop);
+  background: var(--bg);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  transition: opacity var(--transition-slow), visibility var(--transition-slow);
+  z-index: var(--z-overlay);
 }
 
-.loading-content {
-  text-align: center;
-  color: var(--color-white);
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--border);
+  border-top: 2px solid var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: var(--spacing-lg);
 }
 
-.loading-content p {
+.loading-text {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-medium);
-  margin-top: var(--spacing-4);
-  opacity: 0.8;
-}
-
-/* Loading Spinner */
-.loading-spinner {
-  width: 48px;
-  height: 48px;
-  margin: 0 auto;
-  border: 3px solid rgba(255, 255, 255, 0.2);
-  border-top: 3px solid var(--color-primary);
-  border-radius: var(--radius-full);
-  animation: spin 1s linear infinite;
+  color: var(--muted);
 }
 
 @keyframes spin {
@@ -117,96 +85,35 @@ body {
   100% { transform: rotate(360deg); }
 }
 
-/* Glass Panel Utility Classes */
-.glass-panel {
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--glass-shadow);
+/* Cesium Widget Overrides */
+.cesium-viewer {
+  font-family: var(--font-family) !important;
 }
 
-.glass-panel-dark {
-  background: var(--glass-bg-dark);
-  backdrop-filter: var(--glass-blur);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--glass-shadow);
-}
-
-/* Typography Utilities */
-.text-gradient {
-  background: linear-gradient(
-    135deg,
-    var(--color-primary) 0%,
-    var(--color-secondary) 50%,
-    var(--color-accent) 100%
-  );
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.text-glow {
-  text-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
-}
-
-/* Button Utilities */
-.btn-glass {
-  padding: var(--spacing-3) var(--spacing-6);
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  color: var(--color-white);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  transition: all var(--transition-normal);
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-2);
-}
-
-.btn-glass:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-lg);
-}
-
-.btn-glass:active {
-  transform: translateY(0);
-}
-
-/* Hide Cesium UI Elements */
-.cesium-viewer-toolbar,
-.cesium-viewer-animationContainer,
-.cesium-viewer-timelineContainer,
-.cesium-viewer-bottom,
-.cesium-widget-credits,
-.cesium-viewer-cesiumWidgetContainer .cesium-widget-credits {
+.cesium-widget-credits {
   display: none !important;
 }
 
-.cesium-viewer {
-  overflow: hidden;
+.cesium-viewer-toolbar,
+.cesium-viewer-animationContainer,
+.cesium-viewer-timelineContainer,
+.cesium-viewer-bottom {
+  display: none !important;
 }
 
-.cesium-viewer .cesium-widget {
-  border: none;
+/* Ensure full coverage */
+.cesium-widget canvas {
   outline: none;
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .loading-content p {
+  .loading-text {
     font-size: var(--font-size-base);
   }
   
   .loading-spinner {
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
   }
 }
