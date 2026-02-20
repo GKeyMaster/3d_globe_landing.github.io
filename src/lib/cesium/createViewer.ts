@@ -15,6 +15,9 @@ export interface ViewerCreationResult {
   isReady: Promise<void>
 }
 
+// Cache resolved templates to avoid re-resolving on every viewer creation
+let cachedTemplates: { dayTemplate: any; nightTemplate: any } | null = null
+
 export async function createViewer(container: HTMLElement, creditContainer?: HTMLElement): Promise<ViewerCreationResult> {
   // Create terrain provider (no Ion required)
   const terrainProvider = new EllipsoidTerrainProvider()
@@ -41,8 +44,21 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
   // GUARANTEE no Ion imagery remains
   viewer.imageryLayers.removeAll(true)
 
-  // Resolve best available imagery templates
-  const { dayTemplate, nightTemplate } = await resolveImageryTemplates(DAY_TEMPLATES, NIGHT_TEMPLATES)
+  // Resolve best available imagery templates (with caching)
+  if (!cachedTemplates) {
+    try {
+      cachedTemplates = await resolveImageryTemplates(DAY_TEMPLATES, NIGHT_TEMPLATES)
+    } catch (error) {
+      console.warn('Failed to resolve imagery templates, using fallback:', error)
+      // Use fallback templates
+      cachedTemplates = {
+        dayTemplate: DAY_TEMPLATES[DAY_TEMPLATES.length - 1],
+        nightTemplate: NIGHT_TEMPLATES[NIGHT_TEMPLATES.length - 1]
+      }
+    }
+  }
+  
+  const { dayTemplate, nightTemplate } = cachedTemplates
 
   // Create day imagery provider with resolved template
   const dayImageryProvider = new UrlTemplateImageryProvider({
@@ -100,11 +116,10 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
 
   // Create readiness promise that resolves when both layers are ready
   const isReady = new Promise<void>((resolve) => {
-    // Simple timeout-based approach for now
-    // In production, you might want to listen to actual tile loading events
+    // Simple timeout-based approach - reduced time for faster loading
     setTimeout(() => {
       resolve()
-    }, 1000) // Give imagery providers time to initialize
+    }, 500) // Reduced from 1000ms to 500ms
   })
 
   // DEV-ONLY: Verification logging and debug helpers
