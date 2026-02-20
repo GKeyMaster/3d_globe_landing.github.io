@@ -1,6 +1,8 @@
-import * as XLSX from 'xlsx'
-import * as fs from 'fs'
-import * as path from 'path'
+// Handle both CommonJS and ESM imports for xlsx
+import XLSXModule from 'xlsx'
+const XLSX = XLSXModule.default || XLSXModule
+import { promises as fs, existsSync } from 'fs'
+import { join } from 'path'
 
 interface Stop {
   id: string
@@ -122,8 +124,8 @@ async function generateStops() {
     console.log('🚀 Starting stops generation...')
     
     // Check if Excel file exists
-    const excelPath = path.join(process.cwd(), 'data', 'Cities, Venues.xlsx')
-    if (!fs.existsSync(excelPath)) {
+    const excelPath = join(process.cwd(), 'data', 'Cities, Venues.xlsx')
+    if (!existsSync(excelPath)) {
       console.error('❌ Excel file not found at:', excelPath)
       console.error('')
       console.error('Solutions:')
@@ -160,10 +162,10 @@ async function generateStops() {
     
     // Load overrides
     let overrides: { [key: string]: Override } = {}
-    const overridePath = path.join(process.cwd(), 'data', 'stops.override.json')
-    if (fs.existsSync(overridePath)) {
+    const overridePath = join(process.cwd(), 'data', 'stops.override.json')
+    if (existsSync(overridePath)) {
       console.log('📝 Loading overrides...')
-      overrides = JSON.parse(fs.readFileSync(overridePath, 'utf8'))
+      overrides = JSON.parse(await fs.readFile(overridePath, 'utf8'))
     }
     
     // Process only first 2 rows for v1
@@ -203,14 +205,14 @@ async function generateStops() {
     })
     
     // Ensure output directory exists
-    const outputDir = path.join(process.cwd(), 'public', 'data')
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true })
+    const outputDir = join(process.cwd(), 'public', 'data')
+    if (!existsSync(outputDir)) {
+      await fs.mkdir(outputDir, { recursive: true })
     }
     
     // Write output JSON
-    const outputPath = path.join(outputDir, 'stops.v1.json')
-    fs.writeFileSync(outputPath, JSON.stringify(stops, null, 2))
+    const outputPath = join(outputDir, 'stops.v1.json')
+    await fs.writeFile(outputPath, JSON.stringify(stops, null, 2))
     
     console.log(`🎉 Successfully generated ${stops.length} stops`)
     console.log(`📁 Output saved to: ${outputPath}`)

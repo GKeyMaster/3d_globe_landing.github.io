@@ -1,12 +1,12 @@
 [
   {
-    "id": "chicago-unitedcenter",
+    "id": "chicagous-unitedcenter",
     "order": 1,
-    "city": "Chicago",
+    "city": "Chicago, US",
     "countryCode": "US",
     "venue": "United Center",
-    "capacityMin": 23500,
-    "capacityMax": 23500,
+    "capacityMin": null,
+    "capacityMax": null,
     "lat": 41.8806908,
     "lng": -87.6741759,
     "bullets": [
@@ -17,13 +17,13 @@
     ]
   },
   {
-    "id": "toronto-scotiabankarea",
+    "id": "torontoca-scotiabankarena",
     "order": 2,
-    "city": "Toronto",
-    "countryCode": "CA",
+    "city": "Toronto, CA",
+    "countryCode": "US",
     "venue": "Scotiabank Arena",
-    "capacityMin": 19800,
-    "capacityMax": 19800,
+    "capacityMin": null,
+    "capacityMax": null,
     "lat": 43.64343375,
     "lng": -79.3790777248373,
     "bullets": [

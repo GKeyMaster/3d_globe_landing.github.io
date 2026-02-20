@@ -90,6 +90,10 @@ Uses pre-generated data artifacts for stable, network-free builds.
 - Ensure `data/Cities, Venues.xlsx` is committed to repo
 - Or use Mode B with `SKIP_DATA_GEN=1`
 
+**Build fails with "XLSX.readFile is not a function":**
+- This has been fixed in the latest version
+- Ensure you're using the updated scripts with proper ESM imports
+
 **Build fails during building data fetch:**
 - Network connectivity issue with OpenStreetMap
 - Use Mode B for reliable builds
@@ -97,6 +101,7 @@ Uses pre-generated data artifacts for stable, network-free builds.
 **Build timeout:**
 - Building data fetch can take 2-3 minutes
 - Consider using Mode B for faster builds
+- Cloudflare Pages has a 20-minute build timeout (usually sufficient)
 
 ## Architecture
 

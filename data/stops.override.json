@@ -1,5 +1,5 @@
 {
-  "Chicago+United Center": {
+  "Chicago, US+United Center": {
     "lat": 41.8806908,
     "lng": -87.6741759,
     "bullets": [
@@ -9,7 +9,7 @@
       "Notes: Premium venue in downtown Chicago"
     ]
   },
-  "Toronto+Scotiabank Arena": {
+  "Toronto, CA+Scotiabank Arena": {
     "lat": 43.64343375,
     "lng": -79.3790777248373,
     "bullets": [
