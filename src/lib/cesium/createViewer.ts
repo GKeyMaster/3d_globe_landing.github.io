@@ -2,7 +2,7 @@ import {
   Viewer,
   EllipsoidTerrainProvider,
   WebMapTileServiceImageryProvider,
-  GeographicTilingScheme,
+  WebMercatorTilingScheme,
   Credit,
   JulianDate,
   ScreenSpaceEventType
@@ -56,28 +56,26 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
   viewer.screenSpaceEventHandler.removeInputAction(ScreenSpaceEventType.LEFT_CLICK)
   viewer.screenSpaceEventHandler.removeInputAction(ScreenSpaceEventType.LEFT_DOUBLE_CLICK)
 
-  // Create NASA GIBS WMTS imagery provider using REST template (tokenless, free)
-  const gibs = new WebMapTileServiceImageryProvider({
-    // RESTful WMTS template. Use "default" time (supported by GIBS) and 500m matrix set.
-    url: "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/BlueMarble_ShadedRelief_Bathymetry/default/default/500m/{TileMatrix}/{TileRow}/{TileCol}.jpg",
+  // Create NASA GIBS WMTS imagery provider using EPSG:3857 Web Mercator (tokenless, free)
+  const gibsMerc = new WebMapTileServiceImageryProvider({
+    url: "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/default/GoogleMapsCompatible_Level8/{TileMatrix}/{TileRow}/{TileCol}.jpg",
     layer: "BlueMarble_ShadedRelief_Bathymetry",
     style: "default",
     format: "image/jpeg",
-    tileMatrixSetID: "500m",
-    maximumLevel: 7,
-    tilingScheme: new GeographicTilingScheme({
-      numberOfLevelZeroTilesX: 2,
-      numberOfLevelZeroTilesY: 1,
-    }),
+    tileMatrixSetID: "GoogleMapsCompatible_Level8",
+    tilingScheme: new WebMercatorTilingScheme(),
+    // Web Mercator GIBS may not support zoom level 0; start at 1
+    minimumLevel: 1,
+    maximumLevel: 8,
     credit: new Credit("NASA GIBS"),
   })
 
-  // Add error event listener to log tile errors
-  gibs.errorEvent.addEventListener((e: any) => console.warn("[GIBS] tile error", e))
+  // Add debug logging
+  gibsMerc.errorEvent.addEventListener((e: any) => console.warn("[GIBS3857] tile error", e))
 
   // GUARANTEE no Ion imagery remains and add ONLY GIBS provider
   viewer.imageryLayers.removeAll(true)
-  viewer.imageryLayers.addImageryProvider(gibs)
+  viewer.imageryLayers.addImageryProvider(gibsMerc)
 
   // Premium atmosphere settings (tokenless)
   viewer.scene.globe.show = true
@@ -103,7 +101,7 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
     // Wait for imagery provider to initialize and load initial tiles
     const checkReadiness = () => {
       // Check if provider has loaded at least one tile
-      const gibsReady = (gibs as any)._ready !== false
+      const gibsReady = (gibsMerc as any)._ready !== false
       
       if (gibsReady && !imageryReady) {
         imageryReady = true
