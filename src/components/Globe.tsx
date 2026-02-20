@@ -51,10 +51,9 @@ export function Globe({ onReady }: GlobeProps) {
 
         // Fade in the globe
         if (containerRef.current) {
-          containerRef.current.style.opacity = '0'
           containerRef.current.style.transition = 'opacity 300ms ease-out'
           
-          // Small delay to ensure everything is rendered
+          // Small delay to ensure everything is rendered, then fade in
           setTimeout(() => {
             if (containerRef.current && mounted) {
               containerRef.current.style.opacity = '1'
