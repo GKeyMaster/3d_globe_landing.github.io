@@ -1,5 +1,5 @@
 {
-  "buildCommand": "node build.js",
+  "buildCommand": "node simple-build.js",
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "framework": null,
