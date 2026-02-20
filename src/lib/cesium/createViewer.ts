@@ -7,12 +7,19 @@ import {
   Credit,
   JulianDate
 } from 'cesium'
+import { DAY_TEMPLATES, NIGHT_TEMPLATES } from '../imagery/gibsTemplates'
+import { resolveImageryTemplates } from '../imagery/resolveGibsTemplate'
 
-export function createViewer(container: HTMLElement): Viewer {
+export interface ViewerCreationResult {
+  viewer: Viewer
+  isReady: Promise<void>
+}
+
+export async function createViewer(container: HTMLElement, creditContainer?: HTMLElement): Promise<ViewerCreationResult> {
   // Create terrain provider (no Ion required)
   const terrainProvider = new EllipsoidTerrainProvider()
 
-  // Create viewer with minimal configuration
+  // Create viewer with minimal configuration and custom credit container
   const viewer = new Viewer(container, {
     // Terrain
     terrainProvider,
@@ -27,47 +34,47 @@ export function createViewer(container: HTMLElement): Viewer {
     navigationHelpButton: false,
     fullscreenButton: false,
     
-    // Keep credit display for attribution
-    creditContainer: undefined
+    // Custom credit container for unobtrusive credits
+    creditContainer: creditContainer
   })
 
   // GUARANTEE no Ion imagery remains
   viewer.imageryLayers.removeAll(true)
 
-  // Create NASA GIBS WMTS REST provider using EPSG:3857 Web Mercator
-  const nasaImageryProvider = new UrlTemplateImageryProvider({
-    url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpg',
-    minimumLevel: 1, // GIBS Web Mercator zoom level 0 not supported
-    maximumLevel: 8,
-    tilingScheme: new WebMercatorTilingScheme(),
-    // Limit to Web Mercator valid latitude range
-    rectangle: Rectangle.fromDegrees(-180, -85.05112878, 180, 85.05112878),
-    credit: new Credit('NASA EOSDIS GIBS')
-  })
+  // Resolve best available imagery templates
+  const { dayTemplate, nightTemplate } = await resolveImageryTemplates(DAY_TEMPLATES, NIGHT_TEMPLATES)
 
-  // Add NASA day imagery as the base layer
-  viewer.imageryLayers.addImageryProvider(nasaImageryProvider)
-
-  // Create NASA night lights imagery provider
-  const nightImageryProvider = new UrlTemplateImageryProvider({
-    url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_CityLights_2012/default/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpg',
+  // Create day imagery provider with resolved template
+  const dayImageryProvider = new UrlTemplateImageryProvider({
+    url: dayTemplate.url,
     minimumLevel: 1,
-    maximumLevel: 8,
+    maximumLevel: dayTemplate.maxLevel,
     tilingScheme: new WebMercatorTilingScheme(),
     rectangle: Rectangle.fromDegrees(-180, -85.05112878, 180, 85.05112878),
     credit: new Credit('NASA EOSDIS GIBS')
   })
 
-  // Add night lights layer with day/night blending
+  // Create night imagery provider with resolved template
+  const nightImageryProvider = new UrlTemplateImageryProvider({
+    url: nightTemplate.url,
+    minimumLevel: 1,
+    maximumLevel: nightTemplate.maxLevel,
+    tilingScheme: new WebMercatorTilingScheme(),
+    rectangle: Rectangle.fromDegrees(-180, -85.05112878, 180, 85.05112878),
+    credit: new Credit('NASA EOSDIS GIBS')
+  })
+
+  // Add imagery layers
+  viewer.imageryLayers.addImageryProvider(dayImageryProvider)
   const nightImageryLayer = viewer.imageryLayers.addImageryProvider(nightImageryProvider)
   
-  // Configure night lights blending
-  nightImageryLayer.dayAlpha = 0.0  // Invisible during day
+  // Configure night lights blending (tasteful settings)
+  nightImageryLayer.dayAlpha = 0.0    // Invisible during day
   nightImageryLayer.nightAlpha = 1.0  // Fully visible at night
-  nightImageryLayer.alpha = 0.85  // Overall opacity for tasteful glow
-  nightImageryLayer.brightness = 1.1  // Slight brightness boost
-  nightImageryLayer.contrast = 1.2  // Enhanced contrast
-  nightImageryLayer.gamma = 0.9  // Slight gamma adjustment for glow
+  nightImageryLayer.alpha = 0.85      // Overall opacity for tasteful glow
+  nightImageryLayer.brightness = 1.05 // Subtle brightness boost
+  nightImageryLayer.contrast = 1.15   // Enhanced contrast
+  nightImageryLayer.gamma = 0.95      // Slight gamma adjustment
 
   // Enable globe lighting for day/night cycle
   viewer.scene.globe.enableLighting = true
@@ -79,19 +86,32 @@ export function createViewer(container: HTMLElement): Viewer {
 
   // Premium globe visual settings
   viewer.scene.highDynamicRange = true
-  viewer.scene.globe.maximumScreenSpaceError = 1.5 // Higher quality
+  viewer.scene.globe.maximumScreenSpaceError = 1.2 // Higher quality
   
   // Enable FXAA anti-aliasing
   if (viewer.scene.postProcessStages && viewer.scene.postProcessStages.fxaa) {
     viewer.scene.postProcessStages.fxaa.enabled = true
   }
 
-  // Store night layer reference for UI toggle
+  // Store references for debugging
   ;(viewer as any).nightImageryLayer = nightImageryLayer
+  ;(viewer as any).dayImageryProvider = dayImageryProvider
+  ;(viewer as any).nightImageryProvider = nightImageryProvider
+
+  // Create readiness promise that resolves when both layers are ready
+  const isReady = new Promise<void>((resolve) => {
+    // Simple timeout-based approach for now
+    // In production, you might want to listen to actual tile loading events
+    setTimeout(() => {
+      resolve()
+    }, 1000) // Give imagery providers time to initialize
+  })
 
   // DEV-ONLY: Verification logging and debug helpers
   if (import.meta.env.DEV) {
-    console.log('🌍 Cesium Viewer Initialized - Tokenless EPSG:3857 with Night Lights')
+    console.log('🌍 Cesium Viewer Initialized - Premium Tokenless Configuration')
+    console.log(`🌅 Day template: ${dayTemplate.name} (Level ${dayTemplate.maxLevel})`)
+    console.log(`🌃 Night template: ${nightTemplate.name} (Level ${nightTemplate.maxLevel})`)
     
     // Check for unwanted providers
     const layers = viewer.imageryLayers
@@ -122,11 +142,7 @@ export function createViewer(container: HTMLElement): Viewer {
         if (url) {
           console.log(`   URL: ${url}`)
         }
-        console.log(`   Rectangle: ${provider.rectangle ? 'Custom' : 'Default'}`)
-        console.log(`   Tiling Scheme: ${provider.tilingScheme.constructor.name}`)
-        if (providerAny.minimumLevel !== undefined) {
-          console.log(`   Level Range: ${providerAny.minimumLevel}-${providerAny.maximumLevel}`)
-        }
+        console.log(`   Max Level: ${providerAny.maximumLevel}`)
         if (layer.dayAlpha !== undefined) {
           console.log(`   Day/Night Alpha: ${layer.dayAlpha}/${layer.nightAlpha}`)
         }
@@ -136,7 +152,6 @@ export function createViewer(container: HTMLElement): Viewer {
     console.log(`📊 Total imagery layers: ${layers.length}`)
     console.log(`🎨 HDR enabled: ${viewer.scene.highDynamicRange}`)
     console.log(`🌞 Lighting enabled: ${viewer.scene.globe.enableLighting}`)
-    console.log(`🌌 Dynamic atmosphere: ${viewer.scene.globe.dynamicAtmosphereLighting || 'N/A'}`)
     console.log(`🔍 Screen space error: ${viewer.scene.globe.maximumScreenSpaceError}`)
     console.log(`✨ FXAA enabled: ${viewer.scene.postProcessStages?.fxaa?.enabled || false}`)
 
@@ -159,5 +174,5 @@ export function createViewer(container: HTMLElement): Viewer {
     console.log('🔧 Debug helpers available: setNightTime(), setDayTime()')
   }
 
-  return viewer
+  return { viewer, isReady }
 }

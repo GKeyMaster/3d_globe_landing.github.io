@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
+import type { Viewer } from 'cesium'
 import { Globe } from './components/Globe'
 import { HeaderBar } from './components/HeaderBar'
 import { StopList } from './components/StopList'
 import { StopPanel } from './components/StopPanel'
 import { ScenarioToggle } from './components/ScenarioToggle'
+import { CreditsPill } from './components/CreditsPill'
 import { loadStops } from './lib/data/loadStops'
 import type { Stop, Scenario } from './lib/data/types'
 import 'cesium/Build/Cesium/Widgets/widgets.css'
-import './styles/theme.css'
+import './styles/tokens.css'
+import './styles/layout.css'
 
 function App() {
   const [stops, setStops] = useState<Stop[]>([])
@@ -15,6 +18,7 @@ function App() {
   const [scenario, setScenario] = useState<Scenario>('base')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [, setViewer] = useState<Viewer | null>(null)
 
   // Load stops data on app start
   useEffect(() => {
@@ -43,12 +47,35 @@ function App() {
 
   const selectedStop = stops.find(stop => stop.id === selectedStopId) || null
 
+  const handleGlobeReady = (cesiumViewer: Viewer) => {
+    setViewer(cesiumViewer)
+    console.log('🌍 Globe ready for interactions')
+  }
+
   if (loading) {
     return (
-      <div className="w-full h-full flex items-center justify-center">
-        <div className="glass-panel p-xl text-center">
-          <div className="text-lg text-primary mb-sm">Loading tour data...</div>
-          <div className="text-sm text-muted">Please wait while we fetch the latest information</div>
+      <div style={{ 
+        width: '100%', 
+        height: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        background: 'var(--bg)'
+      }}>
+        <div className="glass-panel" style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
+          <div style={{ 
+            fontSize: 'var(--font-size-lg)', 
+            color: 'var(--text)', 
+            marginBottom: 'var(--space-2)' 
+          }}>
+            Loading tour data...
+          </div>
+          <div style={{ 
+            fontSize: 'var(--font-size-sm)', 
+            color: 'var(--text-muted)' 
+          }}>
+            Please wait while we fetch the latest information
+          </div>
         </div>
       </div>
     )
@@ -56,13 +83,41 @@ function App() {
 
   if (error) {
     return (
-      <div className="w-full h-full flex items-center justify-center">
-        <div className="glass-panel p-xl text-center">
-          <div className="text-lg text-primary mb-sm">⚠️ Error Loading Data</div>
-          <div className="text-sm text-muted mb-lg">{error}</div>
+      <div style={{ 
+        width: '100%', 
+        height: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        background: 'var(--bg)'
+      }}>
+        <div className="glass-panel" style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
+          <div style={{ 
+            fontSize: 'var(--font-size-lg)', 
+            color: 'var(--text)', 
+            marginBottom: 'var(--space-2)' 
+          }}>
+            ⚠️ Error Loading Data
+          </div>
+          <div style={{ 
+            fontSize: 'var(--font-size-sm)', 
+            color: 'var(--text-muted)', 
+            marginBottom: 'var(--space-5)' 
+          }}>
+            {error}
+          </div>
           <button 
             onClick={() => window.location.reload()}
-            className="glass-panel-subtle px-lg py-md text-sm hover:border-champagne transition-all"
+            className="glass-panel-subtle interactive"
+            style={{
+              padding: 'var(--space-3) var(--space-5)',
+              fontSize: 'var(--font-size-sm)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--panel)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer'
+            }}
           >
             Retry
           </button>
@@ -74,48 +129,44 @@ function App() {
   return (
     <>
       {/* Globe Background */}
-      <Globe />
+      <Globe onReady={handleGlobeReady} />
       
-      {/* Header */}
-      <HeaderBar 
-        stats={{ 
-          dates: stops.length, 
-          markets: new Set(stops.map(s => s.countryCode)).size 
-        }} 
-      />
-      
-      {/* Main UX Overlay */}
-      <div className="absolute inset-0 z-30 pointer-events-none">
-        <div className="w-full h-full flex">
-          {/* Left Panel */}
-          <div className="w-80 h-full flex flex-col gap-lg p-xl pointer-events-auto">
-            {/* Stop List */}
-            <div className="flex-1">
-              <StopList 
-                stops={stops}
-                selectedStopId={selectedStopId}
-                onSelectStop={setSelectedStopId}
-              />
-            </div>
-            
-            {/* Scenario Toggle */}
-            <div className="flex-shrink-0">
-              <ScenarioToggle 
-                scenario={scenario}
-                onScenarioChange={setScenario}
-              />
-            </div>
-          </div>
-          
-          {/* Right Panel */}
-          <div className="flex-1 h-full flex justify-end p-xl pointer-events-auto">
-            <div className="w-96">
-              <StopPanel 
-                stop={selectedStop}
-                scenario={scenario}
-              />
-            </div>
-          </div>
+      {/* Premium Layout System */}
+      <div className="app-layout">
+        {/* Header */}
+        <div className="layout-header">
+          <HeaderBar 
+            stats={{ 
+              dates: stops.length, 
+              markets: new Set(stops.map(s => s.countryCode)).size 
+            }} 
+          />
+        </div>
+        
+        {/* Left Rail */}
+        <div className="layout-left-rail">
+          <StopList 
+            stops={stops}
+            selectedStopId={selectedStopId}
+            onSelectStop={setSelectedStopId}
+          />
+          <ScenarioToggle 
+            scenario={scenario}
+            onScenarioChange={setScenario}
+          />
+        </div>
+        
+        {/* Right Rail */}
+        <div className="layout-right-rail">
+          <StopPanel 
+            stop={selectedStop}
+            scenario={scenario}
+          />
+        </div>
+        
+        {/* Credits */}
+        <div className="layout-credits">
+          <CreditsPill />
         </div>
       </div>
     </>

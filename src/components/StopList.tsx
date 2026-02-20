@@ -9,16 +9,28 @@ interface StopListProps {
 export function StopList({ stops, selectedStopId, onSelectStop }: StopListProps) {
   if (stops.length === 0) {
     return (
-      <div className="glass-panel p-xl">
-        <div className="text-muted text-sm">No stops available</div>
+      <div className="glass-panel" style={{ padding: 'var(--space-6)' }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>
+          No stops available
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="glass-panel p-lg">
-      <h3 className="text-lg font-semibold text-primary mb-lg">Tour Stops</h3>
-      <div className="flex flex-col gap-sm">
+    <div className="glass-panel" style={{ padding: 'var(--space-5)' }}>
+      <h3 
+        style={{ 
+          fontSize: 'var(--font-size-lg)', 
+          fontWeight: 'var(--font-weight-semibold)',
+          color: 'var(--text)',
+          marginBottom: 'var(--space-4)',
+          letterSpacing: 'var(--letter-spacing-tight)'
+        }}
+      >
+        Tour Stops
+      </h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
         {stops.map((stop) => {
           const isSelected = stop.id === selectedStopId
           
@@ -26,52 +38,75 @@ export function StopList({ stops, selectedStopId, onSelectStop }: StopListProps)
             <button
               key={stop.id}
               onClick={() => onSelectStop(stop.id)}
-              className={`
-                glass-panel-subtle p-md text-left transition-all cursor-pointer
-                ${isSelected 
-                  ? 'border-champagne bg-champagne/5 shadow-lg' 
-                  : 'hover:border-glass-border-hover hover:bg-glass-bg/70'
-                }
-              `}
+              className="glass-panel-subtle interactive"
               style={{
+                padding: 'var(--space-3)',
+                textAlign: 'left',
+                border: isSelected 
+                  ? '1px solid var(--accent)' 
+                  : '1px solid var(--border)',
+                background: isSelected 
+                  ? 'rgba(231, 209, 167, 0.05)' 
+                  : 'rgba(12, 16, 24, 0.35)',
+                borderRadius: 'var(--radius-md)',
+                transition: 'all var(--transition-fast)',
+                cursor: 'pointer',
                 boxShadow: isSelected 
-                  ? '0 0 20px rgba(247, 231, 206, 0.15), var(--shadow-glass)' 
-                  : undefined
+                  ? '0 0 20px rgba(231, 209, 167, 0.1)' 
+                  : 'none'
               }}
             >
-              <div className="flex items-center gap-md">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
                 {/* Order Number */}
                 <div 
-                  className={`
-                    flex items-center justify-center w-8 h-8 rounded-full text-xs font-semibold
-                    ${isSelected 
-                      ? 'bg-champagne text-dark-primary' 
-                      : 'bg-glass-bg text-secondary'
-                    }
-                  `}
                   style={{
-                    background: isSelected 
-                      ? 'var(--color-champagne)' 
-                      : 'var(--color-glass-bg)',
-                    color: isSelected 
-                      ? 'var(--color-dark-primary)' 
-                      : 'var(--color-text-secondary)'
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    fontSize: 'var(--font-size-xs)',
+                    fontWeight: 'var(--font-weight-semibold)',
+                    background: isSelected ? 'var(--accent)' : 'var(--panel)',
+                    color: isSelected ? 'var(--bg)' : 'var(--text-secondary)'
                   }}
                 >
                   {stop.order}
                 </div>
                 
                 {/* Stop Details */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-sm">
-                    <span className={`font-medium ${isSelected ? 'text-primary' : 'text-secondary'}`}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)' }}>
+                    <span 
+                      style={{ 
+                        fontWeight: 'var(--font-weight-medium)',
+                        color: isSelected ? 'var(--text)' : 'var(--text-secondary)',
+                        fontSize: 'var(--font-size-sm)'
+                      }}
+                    >
                       {stop.city}
                     </span>
-                    <span className="text-xs text-muted font-mono">
+                    <span 
+                      style={{ 
+                        fontSize: 'var(--font-size-xs)',
+                        color: 'var(--text-muted)',
+                        fontFamily: 'var(--font-family-mono)'
+                      }}
+                    >
                       {stop.countryCode}
                     </span>
                   </div>
-                  <div className={`text-sm mt-xs truncate ${isSelected ? 'text-champagne-muted' : 'text-muted'}`}>
+                  <div 
+                    style={{ 
+                      fontSize: 'var(--font-size-xs)',
+                      marginTop: 'var(--space-1)',
+                      color: isSelected ? 'var(--accent-muted)' : 'var(--text-muted)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}
+                  >
                     {stop.venue}
                   </div>
                 </div>
@@ -79,8 +114,12 @@ export function StopList({ stops, selectedStopId, onSelectStop }: StopListProps)
                 {/* Selection Indicator */}
                 {isSelected && (
                   <div 
-                    className="w-2 h-2 rounded-full"
-                    style={{ background: 'var(--color-champagne)' }}
+                    style={{ 
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      background: 'var(--accent)'
+                    }}
                   />
                 )}
               </div>

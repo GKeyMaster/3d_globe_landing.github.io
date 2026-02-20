@@ -6,39 +6,48 @@ interface ScenarioToggleProps {
 }
 
 export function ScenarioToggle({ scenario, onScenarioChange }: ScenarioToggleProps) {
-  const scenarios: { value: Scenario; label: string; description: string }[] = [
-    { 
-      value: 'base', 
-      label: 'Base', 
-      description: 'Conservative projections' 
-    },
-    { 
-      value: 'upside', 
-      label: 'Upside', 
-      description: 'Optimistic scenario' 
-    }
+  const scenarios: { value: Scenario; label: string }[] = [
+    { value: 'base', label: 'Base' },
+    { value: 'upside', label: 'Upside' }
   ]
 
   return (
-    <div className="glass-panel p-lg">
-      <h3 className="text-lg font-semibold text-primary mb-md">Scenario</h3>
+    <div className="glass-panel" style={{ padding: 'var(--space-5)' }}>
+      <h3 
+        style={{ 
+          fontSize: 'var(--font-size-lg)', 
+          fontWeight: 'var(--font-weight-semibold)',
+          color: 'var(--text)',
+          marginBottom: 'var(--space-4)',
+          letterSpacing: 'var(--letter-spacing-tight)'
+        }}
+      >
+        Scenario
+      </h3>
       
       {/* Segmented Control */}
       <div 
-        className="relative flex bg-glass-bg rounded-lg p-xs"
         style={{
-          background: 'var(--color-glass-bg)',
-          border: '1px solid var(--color-glass-border)'
+          position: 'relative',
+          display: 'flex',
+          background: 'var(--panel)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          padding: 'var(--space-1)'
         }}
       >
         {/* Background Slider */}
         <div
-          className="absolute top-xs bottom-xs transition-all duration-300 rounded-md"
           style={{
-            left: scenario === 'base' ? '4px' : '50%',
-            width: 'calc(50% - 4px)',
-            background: 'var(--color-champagne)',
-            boxShadow: '0 2px 8px rgba(247, 231, 206, 0.3)'
+            position: 'absolute',
+            top: 'var(--space-1)',
+            bottom: 'var(--space-1)',
+            left: scenario === 'base' ? 'var(--space-1)' : '50%',
+            width: 'calc(50% - var(--space-1))',
+            background: 'var(--accent)',
+            borderRadius: 'var(--radius-md)',
+            transition: 'all var(--transition-normal)',
+            boxShadow: '0 2px 8px rgba(231, 209, 167, 0.25)'
           }}
         />
         
@@ -50,47 +59,40 @@ export function ScenarioToggle({ scenario, onScenarioChange }: ScenarioTogglePro
             <button
               key={option.value}
               onClick={() => onScenarioChange(option.value)}
-              className={`
-                relative flex-1 px-md py-sm text-sm font-medium transition-all duration-300 rounded-md
-                ${isActive 
-                  ? 'text-dark-primary' 
-                  : 'text-secondary hover:text-primary'
-                }
-              `}
               style={{
-                color: isActive 
-                  ? 'var(--color-dark-primary)' 
-                  : undefined
+                position: 'relative',
+                flex: 1,
+                padding: 'var(--space-2) var(--space-3)',
+                fontSize: 'var(--font-size-sm)',
+                fontWeight: 'var(--font-weight-medium)',
+                color: isActive ? 'var(--bg)' : 'var(--text-secondary)',
+                background: 'transparent',
+                border: 'none',
+                borderRadius: 'var(--radius-md)',
+                cursor: 'pointer',
+                transition: 'all var(--transition-normal)',
+                zIndex: 1
               }}
             >
-              <div className="flex flex-col items-center gap-xs">
-                <span className="font-semibold">
-                  {option.label}
-                </span>
-                <span 
-                  className={`text-xs ${isActive ? 'opacity-70' : 'opacity-50'}`}
-                  style={{
-                    color: isActive 
-                      ? 'var(--color-dark-primary)' 
-                      : 'var(--color-text-muted)'
-                  }}
-                >
-                  {option.description}
-                </span>
-              </div>
+              {option.label}
             </button>
           )
         })}
       </div>
       
-      {/* Scenario Description */}
-      <div className="mt-md p-md glass-panel-subtle">
-        <div className="text-xs text-muted">
-          {scenario === 'base' 
-            ? 'Conservative estimates based on historical performance and market analysis.'
-            : 'Optimistic projections assuming strong market conditions and premium positioning.'
-          }
-        </div>
+      {/* Scenario Hint */}
+      <div 
+        style={{
+          marginTop: 'var(--space-3)',
+          fontSize: 'var(--font-size-xs)',
+          color: 'var(--text-muted)',
+          lineHeight: 'var(--line-height-normal)'
+        }}
+      >
+        {scenario === 'base' 
+          ? 'Conservative market estimates'
+          : 'Optimistic market conditions'
+        }
       </div>
     </div>
   )

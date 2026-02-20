@@ -1,5 +1,6 @@
 import type { Stop, Scenario } from '../lib/data/types'
 import { extractStopDetails } from '../lib/data/loadStops'
+import { Users, Ticket, Coins, HandCoins, StickyNote, Target } from 'lucide-react'
 
 interface StopPanelProps {
   stop: Stop | null
@@ -21,50 +22,89 @@ export function StopPanel({ stop, scenario }: StopPanelProps) {
   const details = extractStopDetails(stop, scenario)
 
   const bulletItems = [
-    { label: 'Capacity', value: details.capacity, icon: '👥' },
-    { label: 'Ticket Price', value: details.ticketPrice, icon: '🎫' },
-    { label: 'Projected Gross', value: details.projectedGross, icon: '💰' },
-    { label: 'Net/Guarantee', value: details.netGuarantee, icon: '📊' },
-    { label: 'Notes', value: details.notes, icon: '📝' },
-    { label: 'Market Rationale', value: details.marketRationale, icon: '🎯' }
+    { label: 'Capacity', value: details.capacity, Icon: Users },
+    { label: 'Ticket Price', value: details.ticketPrice, Icon: Ticket },
+    { label: 'Projected Gross', value: details.projectedGross, Icon: Coins },
+    { label: 'Net/Guarantee', value: details.netGuarantee, Icon: HandCoins },
+    { label: 'Notes', value: details.notes, Icon: StickyNote },
+    { label: 'Market Rationale', value: details.marketRationale, Icon: Target }
   ]
 
+  // Separate metrics from notes
+  const metrics = bulletItems.slice(0, 4) // Capacity, Ticket Price, Gross, Net
+  const notes = bulletItems.slice(4)      // Notes, Market Rationale
+
   return (
-    <div className="glass-panel p-xl">
+    <div className="glass-panel" style={{ padding: 'var(--space-6)' }}>
       {/* Header */}
-      <div className="mb-xl">
-        <div className="flex items-center gap-md mb-sm">
-          <h2 className="text-2xl font-semibold text-primary">
+      <div style={{ marginBottom: 'var(--space-6)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}>
+          <h2 
+            style={{ 
+              fontSize: 'var(--font-size-2xl)', 
+              fontWeight: 'var(--font-weight-semibold)',
+              color: 'var(--text)',
+              letterSpacing: 'var(--letter-spacing-tight)'
+            }}
+          >
             {stop.city}
           </h2>
-          <span className="text-sm font-mono text-champagne px-sm py-xs glass-panel-subtle rounded">
+          <span 
+            style={{
+              fontSize: 'var(--font-size-xs)',
+              fontFamily: 'var(--font-family-mono)',
+              color: 'var(--accent)',
+              background: 'rgba(231, 209, 167, 0.1)',
+              padding: 'var(--space-1) var(--space-2)',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)'
+            }}
+          >
             {stop.countryCode}
           </span>
         </div>
-        <h3 className="text-lg text-champagne-muted font-medium">
+        <h3 
+          style={{ 
+            fontSize: 'var(--font-size-lg)', 
+            color: 'var(--accent-muted)',
+            fontWeight: 'var(--font-weight-medium)'
+          }}
+        >
           {stop.venue}
         </h3>
         {stop.lat && stop.lng && (
-          <div className="text-xs text-muted font-mono mt-sm">
+          <div 
+            style={{ 
+              fontSize: 'var(--font-size-xs)',
+              color: 'var(--text-muted)',
+              fontFamily: 'var(--font-family-mono)',
+              marginTop: 'var(--space-2)'
+            }}
+          >
             {stop.lat.toFixed(4)}, {stop.lng.toFixed(4)}
           </div>
         )}
       </div>
 
       {/* Scenario Indicator */}
-      <div className="mb-lg">
-        <div className="flex items-center gap-sm">
-          <span className="text-xs text-muted">Viewing:</span>
+      <div style={{ marginBottom: 'var(--space-5)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
+            Viewing:
+          </span>
           <span 
-            className="text-xs font-semibold px-sm py-xs rounded-md"
             style={{
+              fontSize: 'var(--font-size-xs)',
+              fontWeight: 'var(--font-weight-semibold)',
+              padding: 'var(--space-1) var(--space-2)',
+              borderRadius: 'var(--radius-sm)',
               background: scenario === 'upside' 
-                ? 'rgba(247, 231, 206, 0.1)' 
-                : 'var(--color-glass-bg)',
+                ? 'rgba(231, 209, 167, 0.1)' 
+                : 'var(--panel)',
               color: scenario === 'upside' 
-                ? 'var(--color-champagne)' 
-                : 'var(--color-text-secondary)',
-              border: '1px solid var(--color-glass-border)'
+                ? 'var(--accent)' 
+                : 'var(--text-secondary)',
+              border: '1px solid var(--border)'
             }}
           >
             {scenario === 'base' ? 'Base Scenario' : 'Upside Scenario'}
@@ -72,47 +112,137 @@ export function StopPanel({ stop, scenario }: StopPanelProps) {
         </div>
       </div>
 
-      {/* Details Grid */}
-      <div className="space-y-md">
-        {bulletItems.map((item, index) => (
+      {/* Metrics Grid - Finance Dashboard Style */}
+      <div 
+        style={{ 
+          display: 'grid',
+          gridTemplateColumns: '1fr',
+          gap: 'var(--space-1)',
+          marginBottom: 'var(--space-6)'
+        }}
+      >
+        {metrics.map((item, index) => (
           <div 
             key={index}
-            className="glass-panel-subtle p-md hover:border-glass-border-hover transition-all"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: 'var(--space-3)',
+              background: 'rgba(12, 16, 24, 0.25)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              transition: 'all var(--transition-fast)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border-hover)'
+              e.currentTarget.style.background = 'rgba(12, 16, 24, 0.35)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border)'
+              e.currentTarget.style.background = 'rgba(12, 16, 24, 0.25)'
+            }}
           >
-            <div className="flex items-start gap-md">
-              {/* Icon */}
-              <span className="text-lg flex-shrink-0 mt-xs">
-                {item.icon}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+              <item.Icon 
+                size={16} 
+                style={{ 
+                  color: 'var(--text-muted)', 
+                  opacity: 0.7 
+                }} 
+              />
+              <span 
+                style={{ 
+                  fontSize: 'var(--font-size-sm)',
+                  fontWeight: 'var(--font-weight-medium)',
+                  color: 'var(--text-secondary)'
+                }}
+              >
+                {item.label}
               </span>
-              
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-xs">
-                  <span className="text-sm font-medium text-secondary">
-                    {item.label}
-                  </span>
-                  {item.value === 'TBD' && (
-                    <span className="text-xs text-muted font-mono px-xs py-xs bg-glass-bg rounded">
-                      TBD
-                    </span>
-                  )}
-                </div>
-                
-                <div className={`text-base ${item.value === 'TBD' ? 'text-muted italic' : 'text-primary'}`}>
-                  {item.value}
-                </div>
-              </div>
+            </div>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+              <span 
+                style={{ 
+                  fontSize: 'var(--font-size-sm)',
+                  color: item.value === 'TBD' ? 'var(--text-muted)' : 'var(--text)',
+                  fontStyle: item.value === 'TBD' ? 'italic' : 'normal'
+                }}
+              >
+                {item.value}
+              </span>
+              {item.value === 'TBD' && (
+                <span 
+                  style={{
+                    fontSize: 'var(--font-size-xs)',
+                    color: 'var(--text-muted)',
+                    fontFamily: 'var(--font-family-mono)',
+                    background: 'var(--panel)',
+                    padding: 'var(--space-1)',
+                    borderRadius: 'var(--radius-sm)'
+                  }}
+                >
+                  TBD
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Notes Section */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        {notes.map((item, index) => (
+          <div key={index}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
+              <item.Icon 
+                size={14} 
+                style={{ 
+                  color: 'var(--text-muted)', 
+                  opacity: 0.7 
+                }} 
+              />
+              <span 
+                style={{ 
+                  fontSize: 'var(--font-size-sm)',
+                  fontWeight: 'var(--font-weight-medium)',
+                  color: 'var(--text-secondary)'
+                }}
+              >
+                {item.label}
+              </span>
+            </div>
+            <div 
+              style={{ 
+                fontSize: 'var(--font-size-sm)',
+                color: item.value === 'TBD' ? 'var(--text-muted)' : 'var(--text-secondary)',
+                lineHeight: 'var(--line-height-relaxed)',
+                paddingLeft: 'var(--space-5)',
+                fontStyle: item.value === 'TBD' ? 'italic' : 'normal'
+              }}
+            >
+              {item.value}
             </div>
           </div>
         ))}
       </div>
 
       {/* Footer */}
-      <div className="mt-xl pt-lg border-t border-glass-border">
-        <div className="flex items-center justify-between text-xs text-muted">
-          <span>Stop #{stop.order}</span>
-          <span>Last updated: {new Date().toLocaleDateString()}</span>
-        </div>
+      <div 
+        style={{
+          marginTop: 'var(--space-6)',
+          paddingTop: 'var(--space-4)',
+          borderTop: '1px solid var(--border)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: 'var(--font-size-xs)',
+          color: 'var(--text-muted)'
+        }}
+      >
+        <span>Stop #{stop.order}</span>
+        <span>Last updated: {new Date().toLocaleDateString()}</span>
       </div>
     </div>
   )
