@@ -2,7 +2,6 @@ import {
   Viewer,
   GeoJsonDataSource,
   Color,
-  HeightReference,
   ImageMaterialProperty,
   Cartesian2,
   ConstantProperty
@@ -23,35 +22,32 @@ let facadeTextureDataUrl: string | null = null
  */
 function makeFacadeTextureDataUrl(): string {
   if (facadeTextureDataUrl) return facadeTextureDataUrl
-  
-  const c = document.createElement("canvas")
+
+  const c = document.createElement('canvas')
   c.width = 64
   c.height = 64
-  const ctx = c.getContext("2d")!
-  
-  // dark base
-  ctx.fillStyle = "#151515"
+  const ctx = c.getContext('2d')!
+  // Dark base
+  ctx.fillStyle = '#1a1a1a'
   ctx.fillRect(0, 0, 64, 64)
-  
-  // window grid
-  ctx.fillStyle = "rgba(255,255,255,0.06)"
+  // Window grid (visible facade pattern)
+  ctx.fillStyle = 'rgba(255,255,255,0.12)'
   for (let y = 6; y < 64; y += 10) {
     for (let x = 6; x < 64; x += 10) {
       ctx.fillRect(x, y, 4, 4)
     }
   }
-  
-  // subtle noise
+  // Subtle noise
   const img = ctx.getImageData(0, 0, 64, 64)
   for (let i = 0; i < img.data.length; i += 4) {
     const n = (Math.random() * 12) | 0
-    img.data[i] = img.data[i] + n
-    img.data[i + 1] = img.data[i + 1] + n
-    img.data[i + 2] = img.data[i + 2] + n
+    img.data[i] = Math.min(255, img.data[i] + n)
+    img.data[i + 1] = Math.min(255, img.data[i + 1] + n)
+    img.data[i + 2] = Math.min(255, img.data[i + 2] + n)
   }
   ctx.putImageData(img, 0, 0)
-  
-  facadeTextureDataUrl = c.toDataURL("image/png")
+
+  facadeTextureDataUrl = c.toDataURL('image/png')
   return facadeTextureDataUrl
 }
 
@@ -80,23 +76,6 @@ function calculateBuildingHeight(properties: any): number {
   
   // Fallback random height (prototype ok)
   return 12 + Math.random() * 48 // 12-60m
-}
-
-/**
- * Creates building material with slight variation (Entity-compatible)
- */
-function createBuildingMaterial(index: number): ColorMaterialProperty {
-  // Create subtle variations in building colors - dark neutral glassy tone
-  const baseGray = 0.15 + (index % 7) * 0.02 // Slight variation
-  const warmth = 0.05 + (index % 3) * 0.01 // Subtle warm tint
-  
-  // Use ColorMaterialProperty for Entity polygon.material (not Material)
-  return new ColorMaterialProperty(new Color(
-    baseGray + warmth,     // R
-    baseGray + warmth * 0.8, // G  
-    baseGray,              // B
-    0.65                   // A - glassy transparency
-  ))
 }
 
 /**
@@ -173,34 +152,34 @@ export class BuildingManager {
         }
       }
       
-      // Configure 3D extrusion for each building (apply styling before removing extras)
+      // Configure 3D extrusion for each building
       dataSource.entities.values.forEach((entity, index) => {
-        // Kill yellow outlines from polylines
+        // Remove yellow outlines from polylines
         if (entity.polyline) {
           entity.polyline.show = new ConstantProperty(false)
         }
-        
+
         if (entity.polygon) {
           const properties = entity.properties?.getValue(this.viewer.clock.currentTime) || {}
-          
-          // Calculate height
           const height = calculateBuildingHeight(properties)
-          
-          // Configure polygon for 3D extrusion
+
           entity.polygon.outline = new ConstantProperty(false)
-          entity.polygon.height = new ConstantProperty(0) // Ground level
-          entity.polygon.extrudedHeight = new ConstantProperty(height) // Extrude upward
-          entity.polygon.heightReference = new ConstantProperty(HeightReference.CLAMP_TO_GROUND)
-          
-          // Apply subtle facade texture material
+          entity.polygon.height = new ConstantProperty(0)
+          entity.polygon.extrudedHeight = new ConstantProperty(height)
+
+          // Per-building tint variation (premium look)
+          const tint = 0.85 + Math.random() * 0.12
+          const r = Math.floor(255 * tint)
+          const g = Math.floor(255 * tint)
+          const b = Math.floor(255 * tint * 0.95)
+
           entity.polygon.material = new ImageMaterialProperty({
             image: makeFacadeTextureDataUrl(),
             repeat: new Cartesian2(6, 6),
-            color: Color.WHITE.withAlpha(0.85),
+            color: Color.fromBytes(r, g, b, 230),
             transparent: true,
           })
-          
-          // Set name for debugging
+
           entity.name = `Building ${index + 1} (${height.toFixed(1)}m)`
         }
       })

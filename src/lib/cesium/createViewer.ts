@@ -2,16 +2,62 @@ import {
   Viewer,
   EllipsoidTerrainProvider,
   UrlTemplateImageryProvider,
+  WebMapTileServiceImageryProvider,
   WebMercatorTilingScheme,
   Credit,
-  JulianDate,
+  ConstantProperty,
   ScreenSpaceEventType
 } from 'cesium'
+import type { ImageryLayer } from 'cesium'
 
 export interface ViewerCreationResult {
   viewer: Viewer
+  gibsLayer: ImageryLayer
+  osmLayer: ImageryLayer
   isReady: Promise<void>
   onImageryReady: (callback: () => void) => void
+}
+
+export type MapMode = 'overview' | 'venue'
+
+function easeInOutQuad(t: number): number {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
+}
+
+/** Crossfade imagery layers over 350ms. overview: GIBS visible; venue: OSM visible. */
+export function setMapMode(
+  mode: MapMode,
+  viewer: Viewer,
+  gibsLayer: ImageryLayer,
+  osmLayer: ImageryLayer,
+  options?: { routeEntities?: Array<{ show: unknown }> }
+): void {
+  const targetGibs = mode === 'overview' ? 1 : 0
+  const targetOsm = mode === 'venue' ? 1 : 0
+  const startGibs = gibsLayer.alpha
+  const startOsm = osmLayer.alpha
+  const duration = 350
+  const start = performance.now()
+
+  if (options?.routeEntities) {
+    const show = mode === 'overview'
+    options.routeEntities.forEach((e) => {
+      ;(e as { show: unknown }).show = new ConstantProperty(show)
+    })
+  }
+
+  const tick = () => {
+    const elapsed = performance.now() - start
+    const t = Math.min(1, elapsed / duration)
+    const eased = easeInOutQuad(t)
+    gibsLayer.alpha = startGibs + (targetGibs - startGibs) * eased
+    osmLayer.alpha = startOsm + (targetOsm - startOsm) * eased
+    if (viewer.scene.requestRenderMode) {
+      viewer.scene.requestRender()
+    }
+    if (t < 1) requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
 }
 
 let viewerCreationCount = 0
@@ -25,13 +71,8 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
 
   // Create viewer with minimal configuration and custom credit container
   const viewer = new Viewer(container, {
-    // Terrain
     terrainProvider,
-    
-    // Prevent default imagery (no Bing/Ion)
     imageryProvider: false,
-    
-    // Disable UI clutter
     animation: false,
     timeline: false,
     geocoder: false,
@@ -40,33 +81,40 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
     baseLayerPicker: false,
     navigationHelpButton: false,
     fullscreenButton: false,
-    
-    // Disable Cesium's selection UI (green corner brackets)
     selectionIndicator: false,
     infoBox: false,
-    
-    // Custom credit container for unobtrusive credits
     creditContainer: creditContainer
   })
 
-  // GUARANTEE no Ion imagery remains
   viewer.imageryLayers.removeAll(true)
 
-  // Remove Cesium's default selection handlers to prevent green corner brackets
   viewer.screenSpaceEventHandler.removeInputAction(ScreenSpaceEventType.LEFT_CLICK)
   viewer.screenSpaceEventHandler.removeInputAction(ScreenSpaceEventType.LEFT_DOUBLE_CLICK)
 
-  // Create OpenStreetMap imagery provider for street surface (tokenless, free)
+  // NATURAL global layer (NASA GIBS, Web Mercator)
+  const gibs = new WebMapTileServiceImageryProvider({
+    url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/default/GoogleMapsCompatible_Level8/{TileMatrix}/{TileRow}/{TileCol}.jpg',
+    layer: 'BlueMarble_ShadedRelief_Bathymetry',
+    style: 'default',
+    format: 'image/jpeg',
+    tileMatrixSetID: 'GoogleMapsCompatible_Level8',
+    tilingScheme: new WebMercatorTilingScheme(),
+    minimumLevel: 1,
+    maximumLevel: 8,
+    credit: new Credit('NASA GIBS'),
+  })
+  const gibsLayer = viewer.imageryLayers.addImageryProvider(gibs)
+  gibsLayer.alpha = 1.0
+
+  // CITY/STREET layer (OSM raster)
   const osm = new UrlTemplateImageryProvider({
-    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     tilingScheme: new WebMercatorTilingScheme(),
     maximumLevel: 19,
-    credit: new Credit("© OpenStreetMap contributors"),
+    credit: new Credit('© OpenStreetMap contributors'),
   })
-
-  // GUARANTEE no Ion imagery remains and add ONLY OSM provider
-  viewer.imageryLayers.removeAll(true)
-  viewer.imageryLayers.addImageryProvider(osm)
+  const osmLayer = viewer.imageryLayers.addImageryProvider(osm)
+  osmLayer.alpha = 0.0
 
   // Premium atmosphere settings (tokenless)
   viewer.scene.globe.show = true
@@ -83,34 +131,23 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
     viewer.scene.postProcessStages.fxaa.enabled = true
   }
 
-  // Track imagery readiness
+  // Track imagery readiness (GIBS is primary for overview)
   let imageryReadyCallback: (() => void) | null = null
   let imageryReady = false
 
-  // Create readiness promise that resolves when imagery is ready
   const isReady = new Promise<void>((resolve) => {
-    // Wait for imagery provider to initialize and load initial tiles
     const checkReadiness = () => {
-      // Check if provider has loaded at least one tile
-      const osmReady = (osm as any)._ready !== false
-      
-      if (osmReady && !imageryReady) {
+      const gibsReady = (gibs as unknown as { _ready?: boolean })._ready !== false
+      const osmReady = (osm as unknown as { _ready?: boolean })._ready !== false
+      if ((gibsReady || osmReady) && !imageryReady) {
         imageryReady = true
-        console.log('[Cesium] Imagery layer ready')
-        
-        // Notify callback if set
-        if (imageryReadyCallback) {
-          imageryReadyCallback()
-        }
-        
+        console.log('[Cesium] Imagery layers ready')
+        imageryReadyCallback?.()
         resolve()
       } else {
-        // Check again in a bit
         setTimeout(checkReadiness, 100)
       }
     }
-    
-    // Start checking after a brief delay
     setTimeout(checkReadiness, 500)
   })
 
@@ -165,9 +202,11 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
     console.log(`✨ FXAA enabled: ${viewer.scene.postProcessStages?.fxaa?.enabled || false}`)
   }
 
-  return { 
-    viewer, 
+  return {
+    viewer,
+    gibsLayer,
+    osmLayer,
     isReady,
-    onImageryReady 
+    onImageryReady
   }
 }

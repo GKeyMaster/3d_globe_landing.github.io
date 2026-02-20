@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import type { Viewer } from 'cesium'
+import type { Viewer, ImageryLayer } from 'cesium'
 import { 
   Cartesian3, 
   Math as CesiumMath, 
@@ -8,7 +8,7 @@ import {
   BoundingSphere,
   ConstantProperty
 } from 'cesium'
-import { createViewer } from '../lib/cesium/createViewer'
+import { createViewer, setMapMode } from '../lib/cesium/createViewer'
 import { VenueMarkerManager } from '../lib/cesium/markerUtils'
 import { PremiumCameraManager } from '../lib/cesium/cameraUtils'
 import { RouteManager } from '../lib/cesium/addRoute'
@@ -37,6 +37,8 @@ export function Globe({
   const containerRef = useRef<HTMLDivElement>(null)
   const creditContainerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<Viewer | null>(null)
+  const gibsLayerRef = useRef<ImageryLayer | null>(null)
+  const osmLayerRef = useRef<ImageryLayer | null>(null)
   const markerManagerRef = useRef<VenueMarkerManager | null>(null)
   const cameraManagerRef = useRef<PremiumCameraManager | null>(null)
   const routeManagerRef = useRef<RouteManager | null>(null)
@@ -54,8 +56,15 @@ export function Globe({
 
   // Overview flight function
   const flyToOverview = useCallback((stops: Stop[]) => {
-    if (!viewerRef.current || !stops?.length) return
+    if (!viewerRef.current || !stops?.length || !gibsLayerRef.current || !osmLayerRef.current) return
     const viewer = viewerRef.current
+    const gibsLayer = gibsLayerRef.current
+    const osmLayer = osmLayerRef.current
+
+    // Switch to overview mode (natural surface) at START of flight
+    setMapMode('overview', viewer, gibsLayer, osmLayer, {
+      routeEntities: routeManagerRef.current?.getRouteEntities() ?? undefined
+    })
 
     const pts = stops
       .filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng))
@@ -64,11 +73,8 @@ export function Globe({
     if (pts.length === 0) return
 
     const bs = BoundingSphere.fromPoints(pts)
-
-    // Force a sane range (avoid tiny radius causing weird camera)
     const range = Math.max(bs.radius * 3.5, 1_500_000)
-
-    const duration = Math.min(1.4, Math.max(1.0, 1.2))
+    const duration = Math.min(1.4, Math.max(0.9, 1.2))
 
     viewer.camera.flyToBoundingSphere(bs, {
       duration,
@@ -80,9 +86,8 @@ export function Globe({
       easingFunction: EasingFunction.QUADRATIC_IN_OUT,
       complete: () => {
         viewer.scene.requestRender()
-        // allow fly-to-selected after initial overview finishes
         allowFlyToSelectedRef.current = true
-        console.log('[Globe] Initial overview complete, enabling stop selection')
+        console.log('[Globe] Overview complete, enabling stop selection')
       },
     })
   }, [])
@@ -111,6 +116,8 @@ export function Globe({
         )
 
         viewerRef.current = result.viewer
+        gibsLayerRef.current = result.gibsLayer
+        osmLayerRef.current = result.osmLayer
         
         // Set up imagery ready callback
         result.onImageryReady(() => {
@@ -143,16 +150,10 @@ export function Globe({
         // Initialize building manager
         buildingManagerRef.current = new BuildingManager(result.viewer)
 
-        // Routes are now always visible - no camera change listener needed
-        
-        // Set initial camera position if we have stops
+        // Initialize markers and routes if stops are available
         if (stops.length > 0) {
-          cameraManagerRef.current.setInitialPosition(stops)
-          
-          // Initialize markers and routes immediately if stops are available
           console.log('[Globe] Initializing markers and routes on viewer creation')
           markerManagerRef.current.updateMarkers(stops, selectedStopId)
-          
           if (stops.length > 1) {
             routeManagerRef.current.addTourRoute(stops)
           }
@@ -239,17 +240,6 @@ export function Globe({
     }
   }, [isReady, stops, flyToOverview]) // Run when either viewer becomes ready OR stops data arrives
 
-  // Set initial overview position when stops are first loaded
-  useEffect(() => {
-    if (cameraManagerRef.current && stops.length > 0 && isReady && !selectedStopId) {
-      console.log('[Globe] Setting initial overview position for stops')
-      // Small delay to ensure everything is initialized
-      setTimeout(() => {
-        cameraManagerRef.current?.flyToOverview(stops, 2.5)
-      }, 500)
-    }
-  }, [stops, isReady, selectedStopId])
-
   // Update marker click callback when onSelectStop changes
   useEffect(() => {
     if (markerManagerRef.current && onSelectStop) {
@@ -271,7 +261,7 @@ export function Globe({
         const h = carto.height
         const show = h > 30_000
         routeManagerRef.current?.getRouteEntities().forEach((entity) => {
-          entity.show = new ConstantProperty(show)
+          ;(entity as { show: unknown }).show = new ConstantProperty(show)
         })
         viewer.scene.requestRender()
       })
@@ -285,49 +275,45 @@ export function Globe({
 
   // Fly to selected stop when selection changes (direct viewer.flyTo)
   useEffect(() => {
-    // Do not allow fly-to-selected until initial overview completes
     if (!allowFlyToSelectedRef.current) return
     
-    if (viewerRef.current && selectedStopId && stops.length > 0 && isReady) {
-      const selectedStop = stops.find(stop => stop.id === selectedStopId)
-      if (selectedStop && selectedStop.lat && selectedStop.lng) {
-        console.log(`[FlyTo] ${selectedStop.id} ${selectedStop.lat} ${selectedStop.lng}`)
-        
-        // Try to find marker entity first
-        const markerEntity = markerManagerRef.current?.getMarkerEntity?.(selectedStopId)
-        
-        if (markerEntity) {
-          const offset = new HeadingPitchRange(
-            CesiumMath.toRadians(0),
-            CesiumMath.toRadians(-40),
-            2500 // range meters
-          )
-          const dest = markerEntity.position?.getValue(viewerRef.current.clock.currentTime)
-          const dist = dest
-            ? Cartesian3.distance(viewerRef.current.camera.positionWC, dest)
-            : 3_000_000
-          const duration = Math.min(1.35, Math.max(0.55, dist / 3_000_000))
-          viewerRef.current.flyTo(markerEntity, {
-            duration,
-            offset,
-            easingFunction: EasingFunction.QUADRATIC_IN_OUT,
-          })
-        } else {
-          const dest = Cartesian3.fromDegrees(selectedStop.lng, selectedStop.lat, 3500)
-          const dist = Cartesian3.distance(viewerRef.current.camera.positionWC, dest)
-          const duration = Math.min(1.35, Math.max(0.55, dist / 3_000_000))
-          viewerRef.current.camera.flyTo({
-            destination: dest,
-            orientation: { 
-              heading: 0, 
-              pitch: CesiumMath.toRadians(-40), 
-              roll: 0 
-            },
-            duration,
-            easingFunction: EasingFunction.QUADRATIC_IN_OUT,
-          })
-        }
-      }
+    const viewer = viewerRef.current
+    const gibsLayer = gibsLayerRef.current
+    const osmLayer = osmLayerRef.current
+    if (!viewer || !gibsLayer || !osmLayer || !selectedStopId || stops.length === 0 || !isReady) return
+
+    const selectedStop = stops.find(stop => stop.id === selectedStopId)
+    if (!selectedStop?.lat || !selectedStop?.lng) return
+
+    // Switch to venue mode (street surface) at START of flight
+    setMapMode('venue', viewer, gibsLayer, osmLayer, {
+      routeEntities: routeManagerRef.current?.getRouteEntities() ?? undefined
+    })
+
+    const dest = Cartesian3.fromDegrees(selectedStop.lng, selectedStop.lat, 0)
+    const dist = Cartesian3.distance(viewer.camera.positionWC, dest)
+    const duration = Math.min(1.15, Math.max(0.45, dist / 3_500_000))
+    const range = Math.min(3500, Math.max(2000, 2000 + (dist / 5_000_000) * 1500))
+    const offset = new HeadingPitchRange(
+      CesiumMath.toRadians(0),
+      CesiumMath.toRadians(-40),
+      range
+    )
+
+    const markerEntity = markerManagerRef.current?.getMarkerEntity?.(selectedStopId)
+
+    if (markerEntity) {
+      viewer.flyTo(markerEntity, {
+        duration,
+        offset,
+      })
+    } else {
+      viewer.camera.flyTo({
+        destination: Cartesian3.fromDegrees(selectedStop.lng, selectedStop.lat, range),
+        orientation: { heading: 0, pitch: CesiumMath.toRadians(-40), roll: 0 },
+        duration,
+        easingFunction: EasingFunction.QUADRATIC_IN_OUT,
+      })
     }
   }, [selectedStopId, stops, isReady])
 

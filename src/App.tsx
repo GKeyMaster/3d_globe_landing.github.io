@@ -42,12 +42,7 @@ function App() {
         
         const stopsData = await loadStops()
         setStops(stopsData)
-        
-        // Default select stop #1
-        if (stopsData.length > 0) {
-          setSelectedStopId(stopsData[0].id)
-        }
-        
+        // No default stop - start in Overview mode
         setDataLoaded(true)
         setLoadingStage('imagery')
         setLoadingProgress(0.25)
