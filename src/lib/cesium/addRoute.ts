@@ -76,13 +76,13 @@ export class RouteManager {
       id: `route-segment-${segmentIndex}`,
       polyline: {
         positions: positions,
-        width: 3, // Thin, elegant line
+        width: 6, // Much more visible width
         arcType: ArcType.GEODESIC, // Natural arc following Earth's curvature
         clampToGround: false, // Allow line to arc above surface
         material: new PolylineGlowMaterialProperty({
-          glowPower: new ConstantProperty(0.15), // Subtle glow, not neon
-          taperPower: new ConstantProperty(0.8), // Gentle taper
-          color: new ConstantProperty(Color.fromCssColorString('#E7D1A7').withAlpha(0.8)) // Champagne with transparency
+          glowPower: new ConstantProperty(0.4), // Much stronger glow for visibility
+          taperPower: new ConstantProperty(0.6), // Less taper for consistent visibility
+          color: new ConstantProperty(Color.fromCssColorString('#E7D1A7').withAlpha(0.95)) // Higher opacity
         }),
         // Ensure route renders beneath markers
         zIndex: -1,
@@ -108,9 +108,9 @@ export class RouteManager {
   updateRouteVisibility(): void {
     const cameraHeight = this.viewer.camera.positionCartographic.height
     
-    // Show route when zoomed out enough to see the tour overview
-    // Hide when zoomed in close to individual venues for clean marker view
-    const shouldShowRoute = cameraHeight > 800000 // Show when >800km altitude
+    // Show route at more zoom levels for better visibility
+    // Only hide when very close to individual venues
+    const shouldShowRoute = cameraHeight > 500000 // Show when >500km altitude (lower threshold)
     
     this.routeEntities.forEach(entity => {
       if (entity.polyline) {
@@ -119,9 +119,14 @@ export class RouteManager {
         // Adjust opacity based on zoom level for smooth transition
         const material = entity.polyline.material as PolylineGlowMaterialProperty
         if (material && shouldShowRoute) {
-          const opacity = Math.min(1.0, (cameraHeight - 800000) / 2000000) // Fade in gradually
+          // More visible opacity calculation
+          const minOpacity = 0.7 // Higher minimum opacity
+          const maxOpacity = 0.95 // Higher maximum opacity
+          const fadeRange = 1500000 // Longer fade range
+          const opacity = Math.min(maxOpacity, minOpacity + (cameraHeight - 500000) / fadeRange)
+          
           const baseColor = Color.fromCssColorString('#E7D1A7')
-          material.color = new ConstantProperty(baseColor.withAlpha(opacity * 0.8))
+          material.color = new ConstantProperty(baseColor.withAlpha(Math.max(minOpacity, opacity)))
         }
       }
     })
@@ -136,11 +141,11 @@ export class RouteManager {
       const material = entity.polyline.material as PolylineGlowMaterialProperty
       if (material) {
         if (highlight) {
-          material.glowPower = new ConstantProperty(0.25) // Stronger glow when highlighted
-          material.color = new ConstantProperty(Color.fromCssColorString('#E7D1A7').withAlpha(1.0)) // Full opacity
+          material.glowPower = new ConstantProperty(0.6) // Much stronger glow when highlighted
+          material.color = new ConstantProperty(Color.fromCssColorString('#F4E6C7').withAlpha(1.0)) // Brighter champagne, full opacity
         } else {
-          material.glowPower = new ConstantProperty(0.15) // Normal glow
-          material.color = new ConstantProperty(Color.fromCssColorString('#E7D1A7').withAlpha(0.8)) // Normal transparency
+          material.glowPower = new ConstantProperty(0.4) // Enhanced normal glow
+          material.color = new ConstantProperty(Color.fromCssColorString('#E7D1A7').withAlpha(0.95)) // Higher normal opacity
         }
       }
     }
@@ -215,9 +220,12 @@ export function addSimpleRoute(viewer: Viewer, stops: Stop[]): Entity[] {
         id: `simple-route-${i}`,
         polyline: {
           positions: positions,
-          width: 2,
+          width: 5, // More visible width
           arcType: ArcType.GEODESIC,
-          material: Color.fromCssColorString('#E7D1A7').withAlpha(0.7),
+          material: new PolylineGlowMaterialProperty({
+            glowPower: new ConstantProperty(0.3),
+            color: new ConstantProperty(Color.fromCssColorString('#E7D1A7').withAlpha(0.9))
+          }),
           zIndex: -1
         }
       })
