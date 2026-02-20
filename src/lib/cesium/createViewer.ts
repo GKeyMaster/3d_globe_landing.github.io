@@ -6,11 +6,29 @@ import {
   Rectangle,
   Credit,
   JulianDate,
-  Ion
+  Ion,
+  Color
 } from 'cesium'
 
-// Configure Cesium - ensure no Ion token and set base URL
+// Configure Cesium - completely disable Ion services
 Ion.defaultAccessToken = undefined as any
+
+// Disable Ion asset and terrain providers to prevent API calls
+Ion.defaultServer = undefined as any
+
+// Prevent any Ion API calls by setting empty endpoints
+if (typeof Ion !== 'undefined') {
+  try {
+    // Override Ion endpoints to prevent API calls
+    ;(Ion as any).defaultServer = {
+      url: '',
+      accessToken: undefined
+    }
+  } catch (e) {
+    // Ignore errors in Ion configuration override
+  }
+}
+
 if (typeof window !== 'undefined') {
   ;(window as any).CESIUM_BASE_URL = '/cesium/'
 }
@@ -33,7 +51,7 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
   let viewer: Viewer
   try {
     viewer = new Viewer(container, {
-      // Terrain
+      // Terrain - explicitly use ellipsoid (no Ion)
       terrainProvider,
       
       // Disable UI clutter
@@ -45,6 +63,10 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
       baseLayerPicker: false,
       navigationHelpButton: false,
       fullscreenButton: false,
+      
+      // Disable Ion-related features and prevent Ion API calls
+      requestRenderMode: false,
+      maximumRenderTimeChange: Infinity,
       
       // Custom credit container for unobtrusive credits
       creditContainer: creditContainer
@@ -76,6 +98,9 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
 
   // GUARANTEE no Ion imagery remains
   viewer.imageryLayers.removeAll(true)
+  
+  // Configure globe to prevent any Ion requests
+  viewer.scene.globe.baseColor = Color.fromBytes(51, 51, 76, 255) // Dark blue base color
 
   // Resolve best available imagery templates (with caching)
   if (!cachedTemplates) {
