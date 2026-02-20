@@ -5,7 +5,8 @@ import {
   Math as CesiumMath, 
   HeadingPitchRange,
   EasingFunction,
-  BoundingSphere
+  BoundingSphere,
+  ConstantProperty
 } from 'cesium'
 import { createViewer } from '../lib/cesium/createViewer'
 import { VenueMarkerManager } from '../lib/cesium/markerUtils'
@@ -67,14 +68,16 @@ export function Globe({
     // Force a sane range (avoid tiny radius causing weird camera)
     const range = Math.max(bs.radius * 3.5, 1_500_000)
 
+    const duration = Math.min(1.4, Math.max(1.0, 1.2))
+
     viewer.camera.flyToBoundingSphere(bs, {
-      duration: 2.2,
+      duration,
       offset: new HeadingPitchRange(
         CesiumMath.toRadians(0),
         CesiumMath.toRadians(-45),
         range
       ),
-      easingFunction: EasingFunction.CUBIC_IN_OUT,
+      easingFunction: EasingFunction.QUADRATIC_IN_OUT,
       complete: () => {
         viewer.scene.requestRender()
         // allow fly-to-selected after initial overview finishes
@@ -254,6 +257,32 @@ export function Globe({
     }
   }, [onSelectStop])
 
+  // Hide route when zoomed into city view (camera height < 30km)
+  useEffect(() => {
+    if (!isReady || !viewerRef.current) return
+    const viewer = viewerRef.current
+    const ellipsoid = viewer.scene.globe.ellipsoid
+    let raf = 0
+    const onCameraChanged = () => {
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        const carto = ellipsoid.cartesianToCartographic(viewer.camera.positionWC)
+        const h = carto.height
+        const show = h > 30_000
+        routeManagerRef.current?.getRouteEntities().forEach((entity) => {
+          entity.show = new ConstantProperty(show)
+        })
+        viewer.scene.requestRender()
+      })
+    }
+    viewer.camera.changed.addEventListener(onCameraChanged)
+    return () => {
+      viewer.camera.changed.removeEventListener(onCameraChanged)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [isReady])
+
   // Fly to selected stop when selection changes (direct viewer.flyTo)
   useEffect(() => {
     // Do not allow fly-to-selected until initial overview completes
@@ -268,24 +297,34 @@ export function Globe({
         const markerEntity = markerManagerRef.current?.getMarkerEntity?.(selectedStopId)
         
         if (markerEntity) {
-          // Fly to entity with offset
           const offset = new HeadingPitchRange(
             CesiumMath.toRadians(0),
             CesiumMath.toRadians(-40),
             2500 // range meters
           )
-          viewerRef.current.flyTo(markerEntity, { duration: 2.0, offset })
+          const dest = markerEntity.position?.getValue(viewerRef.current.clock.currentTime)
+          const dist = dest
+            ? Cartesian3.distance(viewerRef.current.camera.positionWC, dest)
+            : 3_000_000
+          const duration = Math.min(1.35, Math.max(0.55, dist / 3_000_000))
+          viewerRef.current.flyTo(markerEntity, {
+            duration,
+            offset,
+            easingFunction: EasingFunction.QUADRATIC_IN_OUT,
+          })
         } else {
-          // Fallback to camera.flyTo (ensure lng, lat, height order)
+          const dest = Cartesian3.fromDegrees(selectedStop.lng, selectedStop.lat, 3500)
+          const dist = Cartesian3.distance(viewerRef.current.camera.positionWC, dest)
+          const duration = Math.min(1.35, Math.max(0.55, dist / 3_000_000))
           viewerRef.current.camera.flyTo({
-            destination: Cartesian3.fromDegrees(selectedStop.lng, selectedStop.lat, 3500),
+            destination: dest,
             orientation: { 
               heading: 0, 
               pitch: CesiumMath.toRadians(-40), 
               roll: 0 
             },
-            duration: 2.0,
-            easingFunction: EasingFunction.CUBIC_IN_OUT,
+            duration,
+            easingFunction: EasingFunction.QUADRATIC_IN_OUT,
           })
         }
       }

@@ -2,12 +2,41 @@ import {
   Viewer,
   Entity,
   Cartesian3,
+  Cartographic,
+  EllipsoidGeodesic,
+  Ellipsoid,
   Color,
   PolylineGlowMaterialProperty,
   ArcType,
   ConstantProperty
 } from 'cesium'
 import type { Stop } from '../data/types'
+
+/**
+ * Build arc positions between two exact endpoints.
+ * Uses the EXACT start/end Cartesian3 (no recomputation) for perfect marker alignment.
+ */
+function buildArcPositions(start: Cartesian3, end: Cartesian3): Cartesian3[] {
+  const startCarto = Cartographic.fromCartesian(start, Ellipsoid.WGS84)
+  const endCarto = Cartographic.fromCartesian(end, Ellipsoid.WGS84)
+  const geodesic = new EllipsoidGeodesic(startCarto, endCarto, Ellipsoid.WGS84)
+
+  const surfaceDistance = geodesic.surfaceDistance
+  const segments = Math.max(32, Math.min(128, Math.floor(surfaceDistance / 50000)))
+  const peak = Math.max(20000, Math.min(220000, surfaceDistance * 0.1))
+
+  const out: Cartesian3[] = []
+  out.push(start)
+  for (let i = 1; i < segments; i++) {
+    const f = i / segments
+    const c = geodesic.interpolateUsingFraction(f)
+    const h = peak * Math.sin(Math.PI * f)
+    c.height = h
+    out.push(Cartesian3.fromRadians(c.longitude, c.latitude, c.height))
+  }
+  out.push(end)
+  return out
+}
 
 /**
  * Premium route visualization utilities for connecting tour stops
@@ -25,7 +54,8 @@ export class RouteManager {
   }
 
   /**
-   * Creates and adds route polylines connecting stops in tour order
+   * Creates and adds route polylines connecting stops in tour order.
+   * Arc endpoints use the exact same Cartesian3 as venue markers for perfect alignment.
    */
   addTourRoute(stops: Stop[]): void {
     this.clearRoutes()
@@ -35,21 +65,24 @@ export class RouteManager {
       return
     }
 
-    // Sort stops by order to ensure correct routing
     const sortedStops = [...stops].sort((a, b) => a.order - b.order)
+    const markerPositions = new Map<string, Cartesian3>()
+    for (const stop of sortedStops) {
+      if (stop.lat != null && stop.lng != null) {
+        markerPositions.set(stop.id, Cartesian3.fromDegrees(stop.lng, stop.lat, 0))
+      }
+    }
+
     console.log(`[Route] Creating route for ${sortedStops.length} stops`)
 
-    // Create route segments between consecutive stops
     for (let i = 0; i < sortedStops.length - 1; i++) {
       const fromStop = sortedStops[i]
       const toStop = sortedStops[i + 1]
-      
-      if (fromStop.lat != null && fromStop.lng != null && 
-          toStop.lat != null && toStop.lng != null) {
-        
-        const routeSegment = this.createRouteSegment(fromStop, toStop, i)
-        
-        // Add immediately for stable rendering - no delays
+      const start = markerPositions.get(fromStop.id)
+      const end = markerPositions.get(toStop.id)
+
+      if (start && end) {
+        const routeSegment = this.createRouteSegment(start, end, fromStop.id, toStop.id, i)
         this.viewer.entities.add(routeSegment)
         this.routeEntities.push(routeSegment)
       }
@@ -59,11 +92,10 @@ export class RouteManager {
   }
 
   /**
-   * Creates a single route segment between two stops with elevation
+   * Creates a single route segment between two exact positions (same Cartesian3 as markers)
    */
-  private createRouteSegment(fromStop: Stop, toStop: Stop, segmentIndex: number): Entity {
-    // Create multiple points for a smooth elevated arc
-    const positions = this.createElevatedArc(fromStop, toStop, 50000)
+  private createRouteSegment(start: Cartesian3, end: Cartesian3, fromStopId: string, toStopId: string, segmentIndex: number): Entity {
+    const positions = buildArcPositions(start, end)
 
     // Create visible polyline with deeper golden glow
     const routeEntity = new Entity({
@@ -92,39 +124,14 @@ export class RouteManager {
       // Store route metadata
       properties: {
         isRouteSegment: true,
-        fromStopId: fromStop.id,
-        toStopId: toStop.id,
-        segmentIndex: segmentIndex
+        fromStopId,
+        toStopId,
+        segmentIndex
       }
     })
 
     return routeEntity
   }
-  
-  /**
-   * Creates an elevated arc between two points for smooth route visualization
-   */
-  private createElevatedArc(fromStop: Stop, toStop: Stop, baseElevation: number): Cartesian3[] {
-    const positions: Cartesian3[] = []
-    const steps = 20 // More points for smoother arc
-    
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps
-      
-      // Interpolate lat/lng
-      const lat = fromStop.lat! + (toStop.lat! - fromStop.lat!) * t
-      const lng = fromStop.lng! + (toStop.lng! - fromStop.lng!) * t
-      
-      // Create arc elevation (higher in the middle)
-      const arcHeight = Math.sin(t * Math.PI) * 200000 // Peak at 200km
-      const elevation = baseElevation + arcHeight
-      
-      positions.push(Cartesian3.fromDegrees(lng, lat, elevation))
-    }
-    
-    return positions
-  }
-
 
   /**
    * Routes are always visible - no dynamic visibility updates needed
