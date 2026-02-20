@@ -28,5 +28,16 @@ export default defineConfig({
   ],
   define: {
     CESIUM_BASE_URL: JSON.stringify('/cesium')
+  },
+  build: {
+    target: 'esnext',
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          cesium: ['cesium']
+        }
+      }
+    }
   }
 })
