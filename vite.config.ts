@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { viteStaticCopy } from 'vite-plugin-static-copy'
 
+// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react(),
@@ -16,20 +17,18 @@ export default defineConfig({
           dest: 'cesium'
         },
         {
-          src: 'node_modules/cesium/Build/Cesium/ThirdParty',
+          src: 'node_modules/cesium/Build/Cesium/Widgets',
           dest: 'cesium'
         },
         {
-          src: 'node_modules/cesium/Build/Cesium/Widgets',
+          src: 'node_modules/cesium/Build/Cesium/ThirdParty',
           dest: 'cesium'
         }
       ]
     })
   ],
   define: {
-    CESIUM_BASE_URL: JSON.stringify('/cesium')
-  },
-  optimizeDeps: {
-    include: ['cesium']
+    // Define Cesium base URL for static assets
+    CESIUM_BASE_URL: JSON.stringify('/cesium/')
   }
 })
