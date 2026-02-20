@@ -51,13 +51,6 @@ export function Globe({
     onReady?.(viewer, cameraManager)
   }, [onReady])
 
-  // Pass flyToOverview function to parent
-  useEffect(() => {
-    if (onFlyToOverview) {
-      onFlyToOverview(flyToOverview)
-    }
-  }, [onFlyToOverview, flyToOverview])
-
   // Overview flight function
   const flyToOverview = useCallback((stops: Stop[]) => {
     if (!viewerRef.current || !stops?.length) return
@@ -90,6 +83,13 @@ export function Globe({
       },
     })
   }, [])
+
+  // Pass flyToOverview function to parent
+  useEffect(() => {
+    if (onFlyToOverview) {
+      onFlyToOverview(flyToOverview)
+    }
+  }, [onFlyToOverview, flyToOverview])
 
   // Initialize Cesium viewer ONCE
   useEffect(() => {
