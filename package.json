@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "node ./node_modules/typescript/bin/tsc && node ./node_modules/vite/bin/vite.js build",
     "preview": "vite preview",
+    "deploy": "npm run build && npx wrangler deploy --assets=./dist",
+    "deploy:vercel": "npm run build && npx vercel --prod",
     "data:v1": "node ./node_modules/typescript/bin/tsc scripts/generate-stops.ts --outDir scripts/dist --target ES2020 --module ES2020 --moduleResolution node && node scripts/dist/generate-stops.js"
   },
   "devDependencies": {
