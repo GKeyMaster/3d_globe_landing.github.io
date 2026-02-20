@@ -3,6 +3,7 @@ import type { Viewer } from 'cesium'
 import { createViewer } from '../lib/cesium/createViewer'
 import { VenueMarkerManager } from '../lib/cesium/markerUtils'
 import { PremiumCameraManager } from '../lib/cesium/cameraUtils'
+import { RouteManager } from '../lib/cesium/addRoute'
 import type { Stop } from '../lib/data/types'
 
 interface GlobeProps {
@@ -27,6 +28,7 @@ export function Globe({
   const viewerRef = useRef<Viewer | null>(null)
   const markerManagerRef = useRef<VenueMarkerManager | null>(null)
   const cameraManagerRef = useRef<PremiumCameraManager | null>(null)
+  const routeManagerRef = useRef<RouteManager | null>(null)
   const initOnceRef = useRef(false)
   const [isReady, setIsReady] = useState(false)
 
@@ -73,10 +75,20 @@ export function Globe({
         // Initialize camera manager
         cameraManagerRef.current = new PremiumCameraManager(result.viewer)
         
+        // Initialize route manager
+        routeManagerRef.current = new RouteManager(result.viewer)
+        
         // Initialize marker manager
         markerManagerRef.current = new VenueMarkerManager(result.viewer)
         if (onSelectStop) {
           markerManagerRef.current.setOnMarkerClick(onSelectStop)
+        }
+
+        // Set up camera change listener for route visibility
+        if (routeManagerRef.current) {
+          result.viewer.camera.changed.addEventListener(() => {
+            routeManagerRef.current?.updateRouteVisibility()
+          })
         }
         
         // Set initial camera position if we have stops
@@ -100,6 +112,10 @@ export function Globe({
         cameraManagerRef.current.cancelFlight()
         cameraManagerRef.current = null
       }
+      if (routeManagerRef.current) {
+        routeManagerRef.current.destroy()
+        routeManagerRef.current = null
+      }
       if (markerManagerRef.current) {
         markerManagerRef.current.destroy()
         markerManagerRef.current = null
@@ -120,11 +136,16 @@ export function Globe({
     }
   }, [onReadyCallback, isReady])
 
-  // Update markers when stops change
+  // Update markers and routes when stops change
   useEffect(() => {
     if (markerManagerRef.current && stops.length > 0) {
       console.log('[Globe] Updating markers for stops')
       markerManagerRef.current.updateMarkers(stops, selectedStopId)
+    }
+    
+    if (routeManagerRef.current && stops.length > 1) {
+      console.log('[Globe] Updating route for stops')
+      routeManagerRef.current.addTourRoute(stops)
     }
   }, [stops, selectedStopId])
 
