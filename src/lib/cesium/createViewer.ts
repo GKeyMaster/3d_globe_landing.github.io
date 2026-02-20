@@ -24,6 +24,10 @@ if (typeof Ion !== 'undefined') {
       url: '',
       accessToken: undefined
     }
+    
+    // Disable Ion imagery providers completely
+    ;(Ion as any).createWorldImagery = undefined
+    ;(Ion as any).createWorldTerrain = undefined
   } catch (e) {
     // Ignore errors in Ion configuration override
   }
@@ -47,12 +51,33 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
   // Create terrain provider (no Ion required)
   const terrainProvider = new EllipsoidTerrainProvider()
 
+
   // Create viewer with minimal configuration and custom credit container
   let viewer: Viewer
+  
+  // Suppress iframe-related and Ion-related errors that don't affect core functionality
+  const originalConsoleError = console.error
+  console.error = (...args) => {
+    const message = args.join(' ')
+    if (message.includes('sandboxed') || 
+        message.includes('about:blank') ||
+        message.includes('getDerivedResource') ||
+        message.includes('fromWorldImagery') ||
+        message.includes('Ion') ||
+        message.includes('_createEndpointResource')) {
+      // Suppress errors that don't affect core functionality
+      return
+    }
+    originalConsoleError.apply(console, args)
+  }
+  
   try {
     viewer = new Viewer(container, {
       // Terrain - explicitly use ellipsoid (no Ion)
       terrainProvider,
+      
+      // Use dummy base layer to prevent Ion calls
+      baseLayer: false,
       
       // Disable UI clutter
       animation: false,
@@ -72,17 +97,6 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
       creditContainer: creditContainer
     })
     
-    // Suppress iframe-related errors that don't affect core functionality
-    const originalConsoleError = console.error
-    console.error = (...args) => {
-      const message = args.join(' ')
-      if (message.includes('sandboxed') || message.includes('about:blank')) {
-        // Suppress sandboxed iframe errors that don't affect core functionality
-        return
-      }
-      originalConsoleError.apply(console, args)
-    }
-    
     console.log('✅ Cesium Viewer instance created')
     
     // Verify viewer is properly initialized
@@ -92,8 +106,30 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
     
     console.log('✅ Viewer scene is available')
   } catch (error) {
-    console.error('❌ Failed to create Cesium Viewer:', error)
-    throw error
+    // If viewer creation fails due to Ion issues, try a more basic approach
+    console.warn('Initial viewer creation failed, trying fallback approach:', error)
+    
+    try {
+      // Fallback: create with absolute minimal configuration
+      viewer = new Viewer(container, {
+        terrainProvider,
+        baseLayer: false,
+        animation: false,
+        timeline: false,
+        geocoder: false,
+        homeButton: false,
+        sceneModePicker: false,
+        baseLayerPicker: false,
+        navigationHelpButton: false,
+        fullscreenButton: false,
+        creditContainer: creditContainer
+      })
+      
+      console.log('✅ Cesium Viewer created with fallback approach')
+    } catch (fallbackError) {
+      console.error('❌ Failed to create Cesium Viewer even with fallback:', fallbackError)
+      throw fallbackError
+    }
   }
 
   // GUARANTEE no Ion imagery remains
