@@ -210,14 +210,15 @@ export function Globe({
     }
   }, [selectedStopId, stops, isReady])
 
-  // Load buildings when a stop is selected
+  // Load buildings when a stop is selected (fire-and-forget, never blocks camera)
   useEffect(() => {
     if (buildingManagerRef.current && selectedStopId && stops.length > 0 && isReady) {
       const selectedStop = stops.find(stop => stop.id === selectedStopId)
       if (selectedStop) {
         console.log(`[Globe] Loading buildings for selected stop: ${selectedStop.city}`)
-        buildingManagerRef.current.loadBuildingsForStop(selectedStop).catch(error => {
-          console.warn(`[Globe] Failed to load buildings for ${selectedStop.city}:`, error)
+        // Fire-and-forget: never await, never block camera motion
+        void buildingManagerRef.current.loadBuildingsForStop(selectedStop).catch(error => {
+          console.warn(`[Buildings] Failed to load for ${selectedStop.city}:`, error)
         })
       }
     }
