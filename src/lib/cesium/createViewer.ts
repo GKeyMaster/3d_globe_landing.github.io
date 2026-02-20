@@ -5,7 +5,8 @@ import {
   WebMercatorTilingScheme,
   Rectangle,
   Credit,
-  JulianDate
+  JulianDate,
+  ScreenSpaceEventType
 } from 'cesium'
 import { DAY_TEMPLATES, NIGHT_TEMPLATES } from '../imagery/gibsTemplates'
 import { resolveImageryTemplates } from '../imagery/resolveGibsTemplate'
@@ -40,12 +41,20 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
     navigationHelpButton: false,
     fullscreenButton: false,
     
+    // Disable Cesium's selection UI (green corner brackets)
+    selectionIndicator: false,
+    infoBox: false,
+    
     // Custom credit container for unobtrusive credits
     creditContainer: creditContainer
   })
 
   // GUARANTEE no Ion imagery remains
   viewer.imageryLayers.removeAll(true)
+
+  // Remove Cesium's default selection handlers to prevent green corner brackets
+  viewer.screenSpaceEventHandler.removeInputAction(ScreenSpaceEventType.LEFT_CLICK)
+  viewer.screenSpaceEventHandler.removeInputAction(ScreenSpaceEventType.LEFT_DOUBLE_CLICK)
 
   // Resolve best available imagery templates
   const { dayTemplate, nightTemplate } = await resolveImageryTemplates(DAY_TEMPLATES, NIGHT_TEMPLATES)

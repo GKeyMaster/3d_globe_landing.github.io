@@ -165,6 +165,10 @@ export class VenueMarkerManager {
     
     // Handle clicks
     this.clickHandler.setInputAction((event: any) => {
+      // Always clear Cesium's selection to prevent green corner brackets
+      this.viewer.selectedEntity = undefined
+      this.viewer.trackedEntity = undefined
+      
       const pickedObject = this.viewer.scene.pick(event.position)
       
       if (defined(pickedObject) && defined(pickedObject.id)) {
@@ -180,6 +184,8 @@ export class VenueMarkerManager {
           }
         }
       }
+      
+      // Test note: Open DevTools and verify viewer.selectedEntity stays undefined after clicking markers
     }, ScreenSpaceEventType.LEFT_CLICK)
 
     // Handle mouse move for hover effects
