@@ -4,9 +4,11 @@ import { createViewer } from '../lib/cesium/createViewer'
 
 interface GlobeProps {
   onReady?: (viewer: Viewer) => void
+  onImageryReady?: () => void
+  hideUntilReady?: boolean
 }
 
-export function Globe({ onReady }: GlobeProps) {
+export function Globe({ onReady, onImageryReady, hideUntilReady = false }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const creditContainerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<Viewer | null>(null)
@@ -37,15 +39,22 @@ export function Globe({ onReady }: GlobeProps) {
 
         viewerRef.current = result.viewer
         
+        // Set up imagery ready callback
+        result.onImageryReady(() => {
+          console.log('[Globe] Imagery ready callback triggered')
+          onImageryReady?.()
+        })
+        
         // Wait for imagery to be ready
         await result.isReady
         
-        // Fade in the globe
-        if (containerRef.current) {
+        // Fade in the globe (only if not hidden until ready)
+        if (containerRef.current && !hideUntilReady) {
           containerRef.current.style.opacity = '1'
-          setIsReady(true)
-          onReadyCallback(result.viewer)
         }
+        
+        setIsReady(true)
+        onReadyCallback(result.viewer)
       } catch (error) {
         console.error('Failed to initialize Cesium viewer:', error)
         setIsReady(true) // Show something even if failed
@@ -114,8 +123,9 @@ export function Globe({ onReady }: GlobeProps) {
           position: 'absolute',
           top: 0,
           left: 0,
-          opacity: 0, // Start invisible, fade in when ready
-          transition: 'opacity 300ms ease-out'
+          opacity: hideUntilReady ? 0 : (isReady ? 1 : 0), // Hide until ready or fade in normally
+          transform: hideUntilReady ? 'scale(1.02)' : 'scale(1)',
+          transition: 'opacity 650ms cubic-bezier(0.23, 1, 0.32, 1), transform 650ms cubic-bezier(0.23, 1, 0.32, 1)'
         }}
       />
 

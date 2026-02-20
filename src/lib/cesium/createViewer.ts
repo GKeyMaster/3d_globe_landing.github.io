@@ -13,6 +13,7 @@ import { resolveImageryTemplates } from '../imagery/resolveGibsTemplate'
 export interface ViewerCreationResult {
   viewer: Viewer
   isReady: Promise<void>
+  onImageryReady: (callback: () => void) => void
 }
 
 let viewerCreationCount = 0
@@ -103,14 +104,45 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
   ;(viewer as any).dayImageryProvider = dayImageryProvider
   ;(viewer as any).nightImageryProvider = nightImageryProvider
 
+  // Track imagery readiness
+  let imageryReadyCallback: (() => void) | null = null
+  let imageryReady = false
+
   // Create readiness promise that resolves when both layers are ready
   const isReady = new Promise<void>((resolve) => {
-    // Simple timeout-based approach for now
-    // In production, you might want to listen to actual tile loading events
-    setTimeout(() => {
-      resolve()
-    }, 1000) // Give imagery providers time to initialize
+    // Wait for imagery providers to initialize and load initial tiles
+    const checkReadiness = () => {
+      // Check if both providers have loaded at least one tile
+      const dayReady = (dayImageryProvider as any)._ready !== false
+      const nightReady = (nightImageryProvider as any)._ready !== false
+      
+      if (dayReady && nightReady && !imageryReady) {
+        imageryReady = true
+        console.log('[Cesium] Imagery layers ready')
+        
+        // Notify callback if set
+        if (imageryReadyCallback) {
+          imageryReadyCallback()
+        }
+        
+        resolve()
+      } else {
+        // Check again in a bit
+        setTimeout(checkReadiness, 100)
+      }
+    }
+    
+    // Start checking after a brief delay
+    setTimeout(checkReadiness, 500)
   })
+
+  const onImageryReady = (callback: () => void) => {
+    if (imageryReady) {
+      callback()
+    } else {
+      imageryReadyCallback = callback
+    }
+  }
 
   // DEV-ONLY: Verification logging and debug helpers
   if (import.meta.env.DEV) {
@@ -179,5 +211,9 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
     console.log('🔧 Debug helpers available: setNightTime(), setDayTime()')
   }
 
-  return { viewer, isReady }
+  return { 
+    viewer, 
+    isReady,
+    onImageryReady 
+  }
 }

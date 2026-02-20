@@ -6,26 +6,36 @@ import { StopList } from './components/StopList'
 import { StopPanel } from './components/StopPanel'
 import { ScenarioToggle } from './components/ScenarioToggle'
 import { CreditsPill } from './components/CreditsPill'
+import { PremiumLoader, type LoadingStage } from './components/PremiumLoader'
 import { loadStops } from './lib/data/loadStops'
 import type { Stop, Scenario } from './lib/data/types'
 import 'cesium/Build/Cesium/Widgets/widgets.css'
 import './styles/tokens.css'
 import './styles/layout.css'
+import './styles/loader.css'
 
 function App() {
   const [stops, setStops] = useState<Stop[]>([])
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null)
   const [scenario, setScenario] = useState<Scenario>('base')
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [, setViewer] = useState<Viewer | null>(null)
+  
+  // Premium loading state machine
+  const [loadingStage, setLoadingStage] = useState<LoadingStage>('boot')
+  const [loadingProgress, setLoadingProgress] = useState(0.05)
+  const [showLoader, setShowLoader] = useState(true)
+  const [dataLoaded, setDataLoaded] = useState(false)
+  const [imageryReady, setImageryReady] = useState(false)
+  const [viewerReady, setViewerReady] = useState(false)
 
   // Load stops data on app start
   useEffect(() => {
     const initializeData = async () => {
       try {
-        setLoading(true)
         setError(null)
+        setLoadingStage('data')
+        setLoadingProgress(0.15)
         
         const stopsData = await loadStops()
         setStops(stopsData)
@@ -34,52 +44,62 @@ function App() {
         if (stopsData.length > 0) {
           setSelectedStopId(stopsData[0].id)
         }
+        
+        setDataLoaded(true)
+        setLoadingStage('imagery')
+        setLoadingProgress(0.25)
       } catch (err) {
         console.error('Failed to load stops:', err)
         setError(err instanceof Error ? err.message : 'Failed to load data')
-      } finally {
-        setLoading(false)
       }
     }
 
     initializeData()
   }, [])
 
+  // Loading stage progression
+  useEffect(() => {
+    if (dataLoaded && imageryReady && !viewerReady) {
+      setLoadingStage('viewer')
+      setLoadingProgress(0.60)
+    } else if (dataLoaded && imageryReady && viewerReady) {
+      setLoadingStage('finalizing')
+      setLoadingProgress(0.85)
+      
+      // Brief finalization phase
+      setTimeout(() => {
+        setLoadingStage('ready')
+        setLoadingProgress(1.0)
+        
+        // Fade out loader
+        setTimeout(() => {
+          setShowLoader(false)
+        }, 300)
+      }, 800)
+    }
+  }, [dataLoaded, imageryReady, viewerReady])
+
   const selectedStop = stops.find(stop => stop.id === selectedStopId) || null
+
+  const handleImageryReady = useCallback(() => {
+    console.log('[App] Imagery preload completed')
+    setImageryReady(true)
+  }, [])
 
   const handleGlobeReady = useCallback((cesiumViewer: Viewer) => {
     setViewer(cesiumViewer)
-    console.log('🌍 Globe ready for interactions')
+    console.log('[App] Globe ready for interactions')
+    
+    // Listen for first frame rendered
+    const onFirstFrame = () => {
+      cesiumViewer.scene.postRender.removeEventListener(onFirstFrame)
+      console.log('[App] First frame rendered')
+      setViewerReady(true)
+    }
+    
+    cesiumViewer.scene.postRender.addEventListener(onFirstFrame)
   }, [])
 
-  if (loading) {
-    return (
-      <div style={{ 
-        width: '100%', 
-        height: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        background: 'var(--bg)'
-      }}>
-        <div className="glass-panel" style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
-          <div style={{ 
-            fontSize: 'var(--font-size-lg)', 
-            color: 'var(--text)', 
-            marginBottom: 'var(--space-2)' 
-          }}>
-            Loading tour data...
-          </div>
-          <div style={{ 
-            fontSize: 'var(--font-size-sm)', 
-            color: 'var(--text-muted)' 
-          }}>
-            Please wait while we fetch the latest information
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   if (error) {
     return (
@@ -128,11 +148,29 @@ function App() {
 
   return (
     <>
+      {/* Premium Loader */}
+      <PremiumLoader 
+        stage={loadingStage}
+        progress={loadingProgress}
+        show={showLoader}
+      />
+      
       {/* Globe Background */}
-      <Globe onReady={handleGlobeReady} />
+      <Globe 
+        onReady={handleGlobeReady} 
+        onImageryReady={handleImageryReady}
+        hideUntilReady={showLoader}
+      />
       
       {/* Premium Layout System */}
-      <div className="app-layout">
+      <div 
+        className="app-layout"
+        style={{
+          opacity: showLoader ? 0 : 1,
+          transform: showLoader ? 'scale(1.02)' : 'scale(1)',
+          transition: 'opacity 650ms cubic-bezier(0.23, 1, 0.32, 1), transform 650ms cubic-bezier(0.23, 1, 0.32, 1)'
+        }}
+      >
         {/* Header */}
         <div className="layout-header">
           <HeaderBar 
