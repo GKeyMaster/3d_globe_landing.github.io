@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import type { Viewer } from 'cesium'
 import type { PremiumCameraManager } from './lib/cesium/cameraUtils'
 import { Globe } from './components/Globe'
