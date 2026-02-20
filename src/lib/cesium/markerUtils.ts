@@ -145,16 +145,23 @@ export function createVenueMarker(stop: Stop, isSelected = false): Entity {
 /**
  * Manages venue markers on the Cesium globe
  */
+export type MarkerHoverInfo = { stopId: string; city: string; venue: string; screenX: number; screenY: number } | null
+
 export class VenueMarkerManager {
   private viewer: Viewer
   private markers: Map<string, Entity> = new Map()
   private clickHandler: ScreenSpaceEventHandler | null = null
   private onMarkerClick: ((stopId: string) => void) | null = null
+  private onMarkerHover: ((info: MarkerHoverInfo) => void) | null = null
   private hoveredEntity: Entity | null = null
 
   constructor(viewer: Viewer) {
     this.viewer = viewer
     this.setupClickHandler()
+  }
+
+  setOnMarkerHover(callback: (info: MarkerHoverInfo) => void): void {
+    this.onMarkerHover = callback
   }
 
   /**
@@ -188,30 +195,35 @@ export class VenueMarkerManager {
       // Test note: Open DevTools and verify viewer.selectedEntity stays undefined after clicking markers
     }, ScreenSpaceEventType.LEFT_CLICK)
 
-    // Handle mouse move for hover effects
+    // Handle mouse move for hover effects and tooltip
     this.clickHandler.setInputAction((event: any) => {
       const pickedObject = this.viewer.scene.pick(event.endPosition)
       
       if (defined(pickedObject) && defined(pickedObject.id)) {
         const entity = pickedObject.id as Entity
         
-        // Check if this is a venue marker
         if (entity.properties?.isVenueMarker?.getValue()) {
           if (this.hoveredEntity !== entity) {
-            // Reset previous hovered entity
-            if (this.hoveredEntity && this.hoveredEntity.billboard) {
+            if (this.hoveredEntity?.billboard) {
               this.hoveredEntity.billboard.scale = new ConstantProperty(1.0)
             }
-            
-            // Set new hovered entity
             this.hoveredEntity = entity
             if (entity.billboard) {
-              entity.billboard.scale = new ConstantProperty(1.1) // Slight scale up on hover
+              entity.billboard.scale = new ConstantProperty(1.2) // Subtle brighten on hover
             }
-            
-            // Change cursor to pointer
             this.viewer.canvas.style.cursor = 'pointer'
           }
+          const props = entity.properties?.getValue?.(this.viewer.clock.currentTime) as Record<string, unknown> | undefined
+          const city = String(props?.city ?? '')
+          const venue = String(props?.venue ?? '')
+          const stopId = String(props?.stopId ?? entity.id ?? '')
+          this.onMarkerHover?.({
+            stopId,
+            city,
+            venue,
+            screenX: event.endPosition.x,
+            screenY: event.endPosition.y
+          })
         } else {
           this.clearHover()
         }
@@ -225,11 +237,12 @@ export class VenueMarkerManager {
    * Clears hover state
    */
   private clearHover(): void {
-    if (this.hoveredEntity && this.hoveredEntity.billboard) {
+    if (this.hoveredEntity?.billboard) {
       this.hoveredEntity.billboard.scale = new ConstantProperty(1.0)
     }
     this.hoveredEntity = null
     this.viewer.canvas.style.cursor = 'default'
+    this.onMarkerHover?.(null)
   }
 
   /**

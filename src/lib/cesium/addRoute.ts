@@ -48,6 +48,7 @@ function buildArcPositions(start: Cartesian3, end: Cartesian3): Cartesian3[] {
 export class RouteManager {
   private viewer: Viewer
   private routeEntities: Entity[] = []
+  private lastRouteStopIds = ''
 
   constructor(viewer: Viewer) {
     this.viewer = viewer
@@ -55,16 +56,21 @@ export class RouteManager {
 
   /**
    * Creates and adds route polylines connecting stops in tour order.
-   * Arc endpoints use the exact same Cartesian3 as venue markers for perfect alignment.
+   * Only rebuilds when stop order/ids change (avoids re-adding on every render).
    */
   addTourRoute(stops: Stop[]): void {
-    this.clearRoutes()
-
     if (stops.length < 2) {
-      console.log('[Route] Need at least 2 stops to create route')
+      if (this.routeEntities.length > 0) {
+        this.clearRoutes()
+        this.lastRouteStopIds = ''
+      }
       return
     }
+    const sortedIds = [...stops].sort((a, b) => a.order - b.order).map((s) => s.id).join(',')
+    if (sortedIds === this.lastRouteStopIds) return
+    this.lastRouteStopIds = sortedIds
 
+    this.clearRoutes()
     const sortedStops = [...stops].sort((a, b) => a.order - b.order)
     const markerPositions = new Map<string, Cartesian3>()
     for (const stop of sortedStops) {

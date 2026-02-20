@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import type { Viewer, ImageryLayer } from 'cesium'
 import { 
   Cartesian3, 
@@ -9,7 +9,7 @@ import {
   ConstantProperty
 } from 'cesium'
 import { createViewer, setMapMode } from '../lib/cesium/createViewer'
-import { VenueMarkerManager } from '../lib/cesium/markerUtils'
+import { VenueMarkerManager, type MarkerHoverInfo } from '../lib/cesium/markerUtils'
 import { PremiumCameraManager } from '../lib/cesium/cameraUtils'
 import { RouteManager } from '../lib/cesium/addRoute'
 import { BuildingManager } from '../lib/cesium/buildingUtils'
@@ -47,6 +47,7 @@ export function Globe({
   const didInitialOverviewRef = useRef(false)
   const allowFlyToSelectedRef = useRef(false)
   const [isReady, setIsReady] = useState(false)
+  const [tooltip, setTooltip] = useState<MarkerHoverInfo>(null)
 
   // Stable callback to avoid recreating the onReady function
   const onReadyCallback = useCallback((viewer: Viewer, cameraManager: PremiumCameraManager) => {
@@ -146,6 +147,7 @@ export function Globe({
         if (onSelectStop) {
           markerManagerRef.current.setOnMarkerClick(onSelectStop)
         }
+        markerManagerRef.current.setOnMarkerHover(setTooltip)
 
         // Initialize building manager
         buildingManagerRef.current = new BuildingManager(result.viewer)
@@ -240,7 +242,7 @@ export function Globe({
     }
   }, [isReady, stops, flyToOverview]) // Run when either viewer becomes ready OR stops data arrives
 
-  // Update marker click callback when onSelectStop changes
+  // Update marker click callback when it changes
   useEffect(() => {
     if (markerManagerRef.current && onSelectStop) {
       markerManagerRef.current.setOnMarkerClick(onSelectStop)
@@ -373,6 +375,20 @@ export function Globe({
           </div>
         </div>
       </div>
+
+      {/* Marker tooltip - glass overlay */}
+      {tooltip && (
+        <div
+          className="marker-tooltip"
+          style={{
+            left: tooltip.screenX,
+            top: tooltip.screenY,
+          }}
+        >
+          <div className="marker-tooltip__city">{tooltip.city}</div>
+          <div className="marker-tooltip__venue">{tooltip.venue}</div>
+        </div>
+      )}
 
       {/* Cesium Container - ALWAYS rendered, never conditional */}
       <div 

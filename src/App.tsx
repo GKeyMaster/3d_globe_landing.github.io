@@ -3,6 +3,7 @@ import type { Viewer } from 'cesium'
 import type { PremiumCameraManager } from './lib/cesium/cameraUtils'
 import { Globe } from './components/Globe'
 import { HeaderBar } from './components/HeaderBar'
+import { SummaryStrip } from './components/SummaryStrip'
 import { StopList } from './components/StopList'
 import { StopPanel } from './components/StopPanel'
 import { ScenarioToggle } from './components/ScenarioToggle'
@@ -104,6 +105,17 @@ function App() {
     setImageryReady(true)
   }, [])
 
+  // Esc closes panel focus / deselects
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        ;(document.activeElement as HTMLElement)?.blur?.()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   const handleGlobeReady = useCallback((cesiumViewer: Viewer, premiumCameraManager: PremiumCameraManager) => {
     setViewer(cesiumViewer)
     setCameraManager(premiumCameraManager)
@@ -203,6 +215,7 @@ function App() {
             }}
             onOverviewClick={handleOverviewClick}
           />
+          <SummaryStrip stops={stops} scenario={scenario} />
         </div>
         
         {/* Left Rail */}

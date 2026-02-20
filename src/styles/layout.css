@@ -25,10 +25,43 @@
   grid-area: header;
   pointer-events: auto;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: var(--space-3);
   z-index: var(--z-elevated);
   padding-top: var(--space-4);
+}
+
+.summary-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  width: fit-content;
+}
+
+.summary-strip__item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.summary-strip__item strong {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.summary-strip__divider {
+  width: 1px;
+  height: 12px;
+  background: var(--border);
 }
 
 /* Header Components */
@@ -206,6 +239,35 @@
 
 .interactive:active {
   transform: translateY(0);
+}
+
+/* Marker tooltip */
+.marker-tooltip {
+  position: fixed;
+  transform: translate(12px, -50%);
+  pointer-events: none;
+  z-index: 1000;
+  padding: var(--space-2) var(--space-3);
+  background: var(--panel);
+  backdrop-filter: var(--blur-lg);
+  -webkit-backdrop-filter: var(--blur-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-glass);
+  white-space: nowrap;
+}
+
+.marker-tooltip__city {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.marker-tooltip__venue {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text);
+  margin-top: 2px;
 }
 
 /* Loading State */

@@ -116,6 +116,14 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
   const osmLayer = viewer.imageryLayers.addImageryProvider(osm)
   osmLayer.alpha = 0.0
 
+  // Performance: only render when needed (camera/entities change)
+  viewer.scene.requestRenderMode = true
+  const renderLoop = () => {
+    viewer.scene.requestRender()
+    requestAnimationFrame(renderLoop)
+  }
+  requestAnimationFrame(renderLoop)
+
   // Premium atmosphere settings (tokenless)
   viewer.scene.globe.show = true
   viewer.scene.skyAtmosphere.show = true
