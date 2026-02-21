@@ -216,8 +216,10 @@ export function Globe({
     if (routeManagerRef.current && stops.length > 1 && isReady) {
       console.log('[Globe] Updating route for stops')
       routeManagerRef.current.addTourRoute(stops)
+      routeManagerRef.current.setRouteVisible(viewMode === 'overview')
+      viewerRef.current?.scene.requestRender()
     }
-  }, [stops, selectedStopId, isReady])
+  }, [stops, selectedStopId, isReady, viewMode])
 
   // Initialize markers and routes when both viewer is ready and stops are available
   useEffect(() => {
@@ -229,9 +231,11 @@ export function Globe({
         markerManagerRef.current.updateMarkers(stops, selectedStopId)
       }
       
-      // Initialize routes
+      // Initialize routes and sync visibility to current view mode
       if (routeManagerRef.current && stops.length > 1) {
         routeManagerRef.current.addTourRoute(stops)
+        routeManagerRef.current.setRouteVisible(viewMode === 'overview')
+        viewerRef.current?.scene.requestRender()
       }
 
       // Start in Overview on initial load (NOT first stop)
@@ -241,7 +245,7 @@ export function Globe({
         flyToOverview(stops)
       }
     }
-  }, [isReady, stops, flyToOverview]) // Run when either viewer becomes ready OR stops data arrives
+  }, [isReady, stops, flyToOverview, viewMode]) // Run when either viewer becomes ready OR stops data arrives
 
   // Update marker click callback when it changes
   useEffect(() => {

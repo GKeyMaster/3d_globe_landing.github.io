@@ -207,13 +207,16 @@ function App() {
       
       {/* Premium Layout System */}
       <div 
-        className="app-layout"
+        className={`app-layout${!selectedStopId ? ' app-layout--panel-closed' : ''}`}
         style={{
           opacity: showLoader ? 0 : 1,
           transform: showLoader ? 'scale(1.02)' : 'scale(1)',
           transition: 'opacity 650ms cubic-bezier(0.23, 1, 0.32, 1), transform 650ms cubic-bezier(0.23, 1, 0.32, 1)'
         }}
       >
+        {/* Main area: pass-through so globe receives clicks for pan/zoom and markers */}
+        <div className="layout-main" aria-hidden />
+        
         {/* Header */}
         <div className="layout-header">
           <HeaderBar 
