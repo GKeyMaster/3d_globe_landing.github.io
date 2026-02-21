@@ -274,6 +274,10 @@ export function Globe({
     const selectedStop = stops.find(stop => stop.id === selectedStopId)
     if (!selectedStop?.lat || !selectedStop?.lng) return
 
+    // Hide route arc immediately when entering venue mode (before flight)
+    routeManagerRef.current?.setRouteVisible(false)
+    viewer.scene.requestRender()
+
     // Switch to venue mode (street surface) at START of flight
     setMapMode('venue', viewer, gibsLayer, osmLayer, {
       routeEntities: routeManagerRef.current?.getRouteEntities() ?? undefined

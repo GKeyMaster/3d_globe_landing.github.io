@@ -145,6 +145,9 @@ export class RouteManager {
   setRouteVisible(visible: boolean): void {
     this.routeEntities.forEach(entity => {
       entity.show = new ConstantProperty(visible)
+      if (entity.polyline) {
+        entity.polyline.show = new ConstantProperty(visible)
+      }
     })
   }
 
