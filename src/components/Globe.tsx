@@ -4,14 +4,14 @@ import {
   Cartesian3, 
   Math as CesiumMath, 
   HeadingPitchRange,
-  EasingFunction,
-  BoundingSphere
+  EasingFunction
 } from 'cesium'
 import { createViewer, setMapMode } from '../lib/cesium/createViewer'
 import { VenueMarkerManager, type MarkerHoverInfo } from '../lib/cesium/markerUtils'
 import { PremiumCameraManager } from '../lib/cesium/cameraUtils'
 import { RouteManager } from '../lib/cesium/addRoute'
 import { BuildingManager } from '../lib/cesium/buildingUtils'
+import { AutoRotateController, setOverviewCamera, removeOverviewConstraints } from '../lib/cesium/autoRotate'
 import type { Stop } from '../lib/data/types'
 
 interface GlobeProps {
@@ -44,6 +44,7 @@ export function Globe({
   const cameraManagerRef = useRef<PremiumCameraManager | null>(null)
   const routeManagerRef = useRef<RouteManager | null>(null)
   const buildingManagerRef = useRef<BuildingManager | null>(null)
+  const autoRotateControllerRef = useRef<AutoRotateController | null>(null)
   const initOnceRef = useRef(false)
   const didInitialOverviewRef = useRef(false)
   const allowFlyToSelectedRef = useRef(false)
@@ -56,42 +57,20 @@ export function Globe({
     onReady?.(viewer, cameraManager)
   }, [onReady])
 
-  // Overview flight function
-  const flyToOverview = useCallback((stops: Stop[]) => {
-    if (!viewerRef.current || !stops?.length || !gibsLayerRef.current || !osmLayerRef.current) return
+  // Overview: whole Earth, auto-rotate, overview constraints
+  const flyToOverview = useCallback((_stops: Stop[]) => {
+    if (!viewerRef.current || !gibsLayerRef.current || !osmLayerRef.current) return
     const viewer = viewerRef.current
     const gibsLayer = gibsLayerRef.current
     const osmLayer = osmLayerRef.current
 
-    // Switch to overview mode (natural surface) at START of flight
     setMapMode('overview', viewer, gibsLayer, osmLayer, {
       routeEntities: routeManagerRef.current?.getRouteEntities() ?? undefined
     })
 
-    const pts = stops
-      .filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng))
-      .map(s => Cartesian3.fromDegrees(s.lng!, s.lat!, 0))
-
-    if (pts.length === 0) return
-
-    const bs = BoundingSphere.fromPoints(pts)
-    const range = Math.max(bs.radius * 3.5, 1_500_000)
-    const duration = Math.min(1.4, Math.max(0.9, 1.2))
-
-    viewer.camera.flyToBoundingSphere(bs, {
-      duration,
-      offset: new HeadingPitchRange(
-        CesiumMath.toRadians(0),
-        CesiumMath.toRadians(-45),
-        range
-      ),
-      easingFunction: EasingFunction.QUADRATIC_IN_OUT,
-      complete: () => {
-        viewer.scene.requestRender()
-        allowFlyToSelectedRef.current = true
-        console.log('[Globe] Overview complete, enabling stop selection')
-      },
-    })
+    autoRotateControllerRef.current?.flyToOverview()
+    allowFlyToSelectedRef.current = true
+    console.log('[Globe] Overview: whole Earth, auto-rotate active')
   }, [])
 
   // Pass flyToOverview function to parent
@@ -153,6 +132,10 @@ export function Globe({
         // Initialize building manager
         buildingManagerRef.current = new BuildingManager(result.viewer)
 
+        // Initialize auto-rotate controller (whole Earth + rotation when overview)
+        autoRotateControllerRef.current = new AutoRotateController(result.viewer)
+        autoRotateControllerRef.current.initialize()
+
         // Initialize markers and routes if stops are available
         if (stops.length > 0) {
           console.log('[Globe] Initializing markers and routes on viewer creation')
@@ -189,6 +172,10 @@ export function Globe({
       if (buildingManagerRef.current) {
         buildingManagerRef.current.clearAllBuildings()
         buildingManagerRef.current = null
+      }
+      if (autoRotateControllerRef.current) {
+        autoRotateControllerRef.current.destroy()
+        autoRotateControllerRef.current = null
       }
       if (viewerRef.current) {
         viewerRef.current.destroy()
@@ -262,6 +249,13 @@ export function Globe({
     }
   }, [viewMode, isReady])
 
+  // Auto-rotate: active in overview, disabled in venue
+  useEffect(() => {
+    if (autoRotateControllerRef.current && isReady) {
+      autoRotateControllerRef.current.setViewMode(viewMode)
+    }
+  }, [viewMode, isReady])
+
   // Fly to selected stop when selection changes (direct viewer.flyTo)
   useEffect(() => {
     if (!allowFlyToSelectedRef.current) return
@@ -278,6 +272,10 @@ export function Globe({
     routeManagerRef.current?.setRouteVisible(false)
     viewer.scene.requestRender()
 
+    // Suspend auto-rotate during flight
+    autoRotateControllerRef.current?.onFlightStart()
+    removeOverviewConstraints(viewer)
+
     // Switch to venue mode (street surface) at START of flight
     setMapMode('venue', viewer, gibsLayer, osmLayer, {
       routeEntities: routeManagerRef.current?.getRouteEntities() ?? undefined
@@ -293,19 +291,22 @@ export function Globe({
       range
     )
 
+    const onFlightComplete = () => {
+      autoRotateControllerRef.current?.onFlightEnd()
+    }
+
     const markerEntity = markerManagerRef.current?.getMarkerEntity?.(selectedStopId)
 
     if (markerEntity) {
-      viewer.flyTo(markerEntity, {
-        duration,
-        offset,
-      })
+      viewer.flyTo(markerEntity, { duration, offset }).then(onFlightComplete).catch(onFlightComplete)
     } else {
       viewer.camera.flyTo({
         destination: Cartesian3.fromDegrees(selectedStop.lng, selectedStop.lat, range),
         orientation: { heading: 0, pitch: CesiumMath.toRadians(-40), roll: 0 },
         duration,
         easingFunction: EasingFunction.QUADRATIC_IN_OUT,
+        complete: onFlightComplete,
+        cancel: onFlightComplete,
       })
     }
   }, [selectedStopId, stops, isReady])
