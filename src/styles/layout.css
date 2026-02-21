@@ -165,20 +165,28 @@
 
 .layout-left-rail {
   grid-area: left-rail;
-  pointer-events: auto;
+  pointer-events: none; /* rail passes through; only panels below capture */
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
   z-index: var(--z-elevated);
 }
 
+.layout-left-rail > * {
+  pointer-events: auto; /* panels capture clicks */
+}
+
 .layout-right-rail {
   grid-area: right-rail;
-  pointer-events: auto;
+  pointer-events: none; /* rail passes through; only panel below captures */
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   z-index: var(--z-elevated);
+}
+
+.layout-right-rail > * {
+  pointer-events: auto; /* panel captures clicks */
 }
 
 /* Collapse right panel when no stop selected (overview mode) */
