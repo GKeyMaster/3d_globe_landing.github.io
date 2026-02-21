@@ -27,7 +27,7 @@ export function removeOverviewConstraints(viewer: Viewer): void {
   controller.maximumZoomDistance = Number.POSITIVE_INFINITY
 }
 
-const AUTO_ROTATE_SPEED = 0.015 // rad/sec
+const AUTO_ROTATE_SPEED = 0.06 // rad/sec (4x)
 const WHEEL_COOLDOWN_MS = 1200
 
 export interface AutoRotateControllerOptions {
