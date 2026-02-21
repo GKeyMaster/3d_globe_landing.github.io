@@ -22,11 +22,13 @@ function App() {
   const [stops, setStops] = useState<Stop[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('overview')
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null)
+  const [lastSelectedStopId, setLastSelectedStopId] = useState<string | null>(null)
   const [scenario, setScenario] = useState<Scenario>('base')
   const [error, setError] = useState<string | null>(null)
   const [, setViewer] = useState<Viewer | null>(null)
   const [cameraManager, setCameraManager] = useState<PremiumCameraManager | null>(null)
   const flyToOverviewRef = useRef<((stops: Stop[]) => void) | null>(null)
+  const flyToOverviewAboveStopRef = useRef<((stop: Stop) => Promise<void>) | null>(null)
   
   // Premium loading state machine
   const [loadingStage, setLoadingStage] = useState<LoadingStage>('boot')
@@ -89,23 +91,35 @@ function App() {
     if (stop) {
       console.log(`[App] Selecting stop: ${stop.city} - ${stop.venue}`)
       setSelectedStopId(stopId)
+      setLastSelectedStopId(stopId)
       setViewMode('venue')
-      // Camera will fly via the useEffect in Globe.tsx
     } else {
       setSelectedStopId(stopId)
+      setLastSelectedStopId(stopId)
       setViewMode('venue')
     }
   }, [stops])
 
-  // Overview button: enter overview mode and deselect
+  // Overview button: fly out to overview above last selected venue, then deselect
   const handleOverviewClick = useCallback(() => {
+    const sortedStops = [...stops].sort((a, b) => a.order - b.order)
+    const firstStopId = sortedStops[0]?.id ?? null
+    const anchorStopId = lastSelectedStopId ?? selectedStopId ?? firstStopId
+    const anchorStop = anchorStopId ? stops.find(s => s.id === anchorStopId) : null
+
     setViewMode('overview')
-    setSelectedStopId(null)
-    if (flyToOverviewRef.current && stops.length > 0) {
-      console.log('[App] Overview button clicked')
+
+    if (flyToOverviewAboveStopRef.current && anchorStop && anchorStop.lat != null && anchorStop.lng != null) {
+      console.log('[App] Overview: flying out above last venue')
+      flyToOverviewAboveStopRef.current(anchorStop).then(() => {
+        setSelectedStopId(null)
+      })
+    } else if (flyToOverviewRef.current && stops.length > 0) {
+      console.log('[App] Overview: no anchor, using default')
       flyToOverviewRef.current(stops)
+      setSelectedStopId(null)
     }
-  }, [stops])
+  }, [stops, lastSelectedStopId, selectedStopId])
 
   const handleImageryReady = useCallback(() => {
     console.log('[App] Imagery preload completed')
@@ -203,6 +217,7 @@ function App() {
         selectedStopId={selectedStopId}
         onSelectStop={handleStopSelection}
         onFlyToOverview={(fn) => { flyToOverviewRef.current = fn }}
+        onFlyToOverviewAboveStop={(fn) => { flyToOverviewAboveStopRef.current = fn }}
       />
       
       {/* Premium Layout System */}

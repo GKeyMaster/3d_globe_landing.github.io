@@ -11,7 +11,8 @@ import { VenueMarkerManager, type MarkerHoverInfo } from '../lib/cesium/markerUt
 import { PremiumCameraManager } from '../lib/cesium/cameraUtils'
 import { RouteManager } from '../lib/cesium/addRoute'
 import { BuildingManager } from '../lib/cesium/buildingUtils'
-import { AutoRotateController, setOverviewCamera, removeOverviewConstraints } from '../lib/cesium/autoRotate'
+import { AutoRotateController, setOverviewCamera, removeOverviewConstraints, applyOverviewConstraints } from '../lib/cesium/autoRotate'
+import { getEarthRadius, computeEarthCenteredPoseAboveLatLng } from '../lib/cesium/camera/poses'
 import type { Stop } from '../lib/data/types'
 
 interface GlobeProps {
@@ -23,6 +24,7 @@ interface GlobeProps {
   selectedStopId?: string | null
   onSelectStop?: (stopId: string) => void
   onFlyToOverview?: (flyToOverviewFn: (stops: Stop[]) => void) => void
+  onFlyToOverviewAboveStop?: (flyToOverviewAboveStopFn: (stop: Stop) => Promise<void>) => void
 }
 
 export function Globe({ 
@@ -33,7 +35,8 @@ export function Globe({
   viewMode = 'overview',
   selectedStopId = null, 
   onSelectStop,
-  onFlyToOverview
+  onFlyToOverview,
+  onFlyToOverviewAboveStop
 }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const creditContainerRef = useRef<HTMLDivElement>(null)
@@ -80,12 +83,51 @@ export function Globe({
     console.log('[Globe] Overview: whole Earth, auto-rotate active')
   }, [])
 
-  // Pass flyToOverview function to parent
+  // Fly out to overview pose above the given stop; returns Promise that resolves when flight completes
+  const flyToOverviewAboveStop = useCallback((stop: Stop): Promise<void> => {
+    const viewer = viewerRef.current
+    const gibsLayer = gibsLayerRef.current
+    const osmLayer = osmLayerRef.current
+    if (!viewer || !gibsLayer || !osmLayer || !stop.lat || !stop.lng) return Promise.resolve()
+
+    setMapMode('overview', viewer, gibsLayer, osmLayer, {
+      routeEntities: routeManagerRef.current?.getRouteEntities() ?? undefined
+    })
+    routeManagerRef.current?.setRouteVisible(true)
+    autoRotateControllerRef.current?.onFlightStart()
+    applyOverviewConstraints(viewer)
+
+    const radius = getEarthRadius(viewer)
+    const distanceFromCenter = radius * 2.4
+    const ellipsoid = viewer.scene.globe.ellipsoid
+    const pose = computeEarthCenteredPoseAboveLatLng(stop.lng, stop.lat, distanceFromCenter, ellipsoid)
+
+    const duration = 3.0
+    return new Promise<void>((resolve) => {
+      viewer.camera.flyTo({
+        destination: pose.destination,
+        orientation: { direction: pose.direction, up: pose.up },
+        duration,
+        easingFunction: EasingFunction.QUADRATIC_IN_OUT,
+        complete: () => {
+          autoRotateControllerRef.current?.onFlightEnd()
+          resolve()
+        },
+        cancel: () => {
+          autoRotateControllerRef.current?.onFlightEnd()
+          resolve()
+        },
+      })
+    })
+  }, [])
+
   useEffect(() => {
-    if (onFlyToOverview) {
-      onFlyToOverview(flyToOverview)
-    }
+    if (onFlyToOverview) onFlyToOverview(flyToOverview)
   }, [onFlyToOverview, flyToOverview])
+
+  useEffect(() => {
+    if (onFlyToOverviewAboveStop) onFlyToOverviewAboveStop(flyToOverviewAboveStop)
+  }, [onFlyToOverviewAboveStop, flyToOverviewAboveStop])
 
   // Initialize Cesium viewer ONCE
   useEffect(() => {
