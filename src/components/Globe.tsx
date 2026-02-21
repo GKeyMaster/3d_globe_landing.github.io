@@ -48,6 +48,8 @@ export function Globe({
   const initOnceRef = useRef(false)
   const didInitialOverviewRef = useRef(false)
   const allowFlyToSelectedRef = useRef(false)
+  const stopsRef = useRef<Stop[]>([])
+  stopsRef.current = stops
   const [isReady, setIsReady] = useState(false)
   const [tooltip, setTooltip] = useState<MarkerHoverInfo>(null)
 
@@ -137,9 +139,16 @@ export function Globe({
         // Initialize building manager
         buildingManagerRef.current = new BuildingManager(result.viewer)
 
-        // Initialize auto-rotate controller (sets centered whole Earth, then starts rotation)
+        // Initialize auto-rotate controller with first venue anchor so initial view is above Chicago
         autoRotateControllerRef.current = new AutoRotateController(result.viewer)
-        autoRotateControllerRef.current.initialize()
+        const currentStops = stopsRef.current
+        const firstStop = currentStops.length > 0
+          ? [...currentStops].sort((a, b) => a.order - b.order)[0]
+          : null
+        const anchor = firstStop && firstStop.lat != null && firstStop.lng != null
+          ? { lon: firstStop.lng, lat: firstStop.lat }
+          : undefined
+        autoRotateControllerRef.current.initialize(anchor)
 
         // Initialize markers and routes if stops are available
         if (stops.length > 0) {
