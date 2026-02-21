@@ -139,9 +139,9 @@ export function Globe({
         // Initialize building manager
         buildingManagerRef.current = new BuildingManager(result.viewer)
 
-        // Initial view: from southern side (not northern hemisphere)
+        // Initial view: above equator (side view)
         autoRotateControllerRef.current = new AutoRotateController(result.viewer)
-        const initialAnchor = { lon: 0, lat: -80 }
+        const initialAnchor = { lon: 0, lat: 0 }
         autoRotateControllerRef.current.initialize(initialAnchor)
 
         // Initialize markers and routes if stops are available
