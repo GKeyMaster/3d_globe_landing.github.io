@@ -6,12 +6,13 @@ import {
   HeadingPitchRange,
   EasingFunction
 } from 'cesium'
-import { createViewer, setMapMode, setMapModeInstant } from '../lib/cesium/createViewer'
+import { createViewer, setMapMode } from '../lib/cesium/createViewer'
 import { VenueMarkerManager, type MarkerHoverInfo } from '../lib/cesium/markerUtils'
 import { PremiumCameraManager } from '../lib/cesium/cameraUtils'
 import { RouteManager } from '../lib/cesium/addRoute'
 import { BuildingManager } from '../lib/cesium/buildingUtils'
 import { AutoRotateController, setOverviewCamera, removeOverviewConstraints, applyOverviewConstraints } from '../lib/cesium/autoRotate'
+import { applyVenueCameraLock, removeVenueCameraLock } from '../lib/cesium/venueCameraLock'
 import { OVERVIEW_DISTANCE_MULTIPLIER } from '../lib/cesium/camera/overview'
 import { getEarthRadius, computeEarthCenteredPoseAboveLatLng } from '../lib/cesium/camera/poses'
 import type { Stop } from '../lib/data/types'
@@ -26,8 +27,6 @@ interface GlobeProps {
   onSelectStop?: (stopId: string) => void
   onFlyToOverview?: (flyToOverviewFn: (stops: Stop[]) => void) => void
   onFlyToOverviewAboveStop?: (flyToOverviewAboveStopFn: (stop: Stop) => Promise<void>) => void
-  onFlyToStop?: (flyToStopFn: (stop: Stop) => Promise<void>) => void
-  onMapModeControllerReady?: (setMapModeInstant: (mode: 'overview' | 'venue') => void) => void
 }
 
 export function Globe({ 
@@ -39,9 +38,7 @@ export function Globe({
   selectedStopId = null, 
   onSelectStop,
   onFlyToOverview,
-  onFlyToOverviewAboveStop,
-  onFlyToStop,
-  onMapModeControllerReady
+  onFlyToOverviewAboveStop
 }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const creditContainerRef = useRef<HTMLDivElement>(null)
@@ -68,10 +65,15 @@ export function Globe({
   }, [onReady])
 
   // Overview: whole Earth above first venue, auto-rotate, overview constraints
-  // Note: Imagery swap (Natural/Map) is done by App inside runCloudWrapped; do not call setMapMode here.
   const flyToOverview = useCallback((stops: Stop[]) => {
     if (!viewerRef.current || !gibsLayerRef.current || !osmLayerRef.current) return
     const viewer = viewerRef.current
+    const gibsLayer = gibsLayerRef.current
+    const osmLayer = osmLayerRef.current
+
+    setMapMode('overview', viewer, gibsLayer, osmLayer, {
+      routeEntities: routeManagerRef.current?.getRouteEntities() ?? undefined
+    })
 
     const firstStop = [...stops].sort((a, b) => a.order - b.order)[0]
     const anchor = firstStop && firstStop.lat != null && firstStop.lng != null
@@ -84,11 +86,15 @@ export function Globe({
   }, [])
 
   // Fly out to overview pose above the given stop; returns Promise that resolves when flight completes
-  // Note: Imagery swap (Natural/Map) is done by App inside runCloudWrapped; do not call setMapMode here.
   const flyToOverviewAboveStop = useCallback((stop: Stop): Promise<void> => {
     const viewer = viewerRef.current
-    if (!viewer || !stop.lat || !stop.lng) return Promise.resolve()
+    const gibsLayer = gibsLayerRef.current
+    const osmLayer = osmLayerRef.current
+    if (!viewer || !gibsLayer || !osmLayer || !stop.lat || !stop.lng) return Promise.resolve()
 
+    setMapMode('overview', viewer, gibsLayer, osmLayer, {
+      routeEntities: routeManagerRef.current?.getRouteEntities() ?? undefined
+    })
     routeManagerRef.current?.setRouteVisible(true)
     autoRotateControllerRef.current?.onFlightStart()
     applyOverviewConstraints(viewer)
@@ -124,54 +130,6 @@ export function Globe({
   useEffect(() => {
     if (onFlyToOverviewAboveStop) onFlyToOverviewAboveStop(flyToOverviewAboveStop)
   }, [onFlyToOverviewAboveStop, flyToOverviewAboveStop])
-
-  // Fly to venue (called by App inside runCloudWrapped when viewMode=venue && selectedStopId)
-  const flyToStop = useCallback((stop: Stop): Promise<void> => {
-    const viewer = viewerRef.current
-    const gibsLayer = gibsLayerRef.current
-    const osmLayer = osmLayerRef.current
-    if (!viewer || !gibsLayer || !osmLayer || !stop?.lat || !stop?.lng) return Promise.resolve()
-
-    routeManagerRef.current?.setRouteVisible(false)
-    viewer.scene.requestRender()
-    autoRotateControllerRef.current?.onFlightStart()
-    removeOverviewConstraints(viewer)
-
-    const selectedStopId = stop.id
-    const dest = Cartesian3.fromDegrees(stop.lng, stop.lat, 0)
-    const dist = Cartesian3.distance(viewer.camera.positionWC, dest)
-    const duration = Math.min(1.15, Math.max(0.45, dist / 3_500_000))
-    const range = Math.min(3500, Math.max(2000, 2000 + (dist / 5_000_000) * 1500))
-    const offset = new HeadingPitchRange(
-      CesiumMath.toRadians(0),
-      CesiumMath.toRadians(-40),
-      range
-    )
-
-    const onFlightComplete = () => {
-      autoRotateControllerRef.current?.onFlightEnd()
-    }
-
-    const markerEntity = markerManagerRef.current?.getMarkerEntity?.(selectedStopId)
-
-    if (markerEntity) {
-      return viewer.flyTo(markerEntity, { duration, offset }).then(onFlightComplete).catch(onFlightComplete)
-    }
-    return new Promise<void>((resolve) => {
-      viewer.camera.flyTo({
-        destination: Cartesian3.fromDegrees(stop.lng, stop.lat, range),
-        orientation: { heading: 0, pitch: CesiumMath.toRadians(-40), roll: 0 },
-        duration,
-        easingFunction: EasingFunction.QUADRATIC_IN_OUT,
-        complete: () => { onFlightComplete(); resolve() },
-        cancel: () => { onFlightComplete(); resolve() },
-      })
-    })
-  }, [])
-
-  useEffect(() => {
-    if (onFlyToStop) onFlyToStop(flyToStop)
-  }, [onFlyToStop, flyToStop])
 
   // Initialize Cesium viewer ONCE
   useEffect(() => {
@@ -292,19 +250,6 @@ export function Globe({
     }
   }, [onReadyCallback, isReady])
 
-  // Expose setMapModeInstant for cloud-wrapped transitions (imagery swap at peak opacity)
-  useEffect(() => {
-    const gibs = gibsLayerRef.current
-    const osm = osmLayerRef.current
-    if (!isReady || !gibs || !osm || !onMapModeControllerReady) return
-    onMapModeControllerReady((mode: 'overview' | 'venue') => {
-      setMapModeInstant(mode, gibs, osm, {
-        routeEntities: routeManagerRef.current?.getRouteEntities() ?? undefined
-      })
-      viewerRef.current?.scene.requestRender()
-    })
-  }, [isReady, onMapModeControllerReady])
-
   // Update markers and routes when stops change or viewer becomes ready
   useEffect(() => {
     if (markerManagerRef.current && stops.length > 0 && isReady) {
@@ -367,6 +312,76 @@ export function Globe({
       autoRotateControllerRef.current.setViewMode(viewMode)
     }
   }, [viewMode, isReady])
+
+  // Venue camera lock: remove when switching to overview
+  useEffect(() => {
+    if (viewerRef.current && isReady && viewMode === 'overview') {
+      removeVenueCameraLock(viewerRef.current)
+    }
+  }, [viewMode, isReady])
+
+  // Fly to selected stop when selection changes (direct viewer.flyTo)
+  useEffect(() => {
+    if (!allowFlyToSelectedRef.current) return
+    
+    const viewer = viewerRef.current
+    const gibsLayer = gibsLayerRef.current
+    const osmLayer = osmLayerRef.current
+    if (!viewer || !gibsLayer || !osmLayer || !selectedStopId || stops.length === 0 || !isReady) return
+
+    const selectedStop = stops.find(stop => stop.id === selectedStopId)
+    if (!selectedStop?.lat || !selectedStop?.lng) return
+
+    // Clear any existing venue lock so flight can run
+    removeVenueCameraLock(viewer)
+
+    // Hide route arc immediately when entering venue mode (before flight)
+    routeManagerRef.current?.setRouteVisible(false)
+    viewer.scene.requestRender()
+
+    // Suspend auto-rotate during flight
+    autoRotateControllerRef.current?.onFlightStart()
+    removeOverviewConstraints(viewer)
+
+    // Switch to venue mode (street surface) at START of flight
+    setMapMode('venue', viewer, gibsLayer, osmLayer, {
+      routeEntities: routeManagerRef.current?.getRouteEntities() ?? undefined
+    })
+
+    const dest = Cartesian3.fromDegrees(selectedStop.lng, selectedStop.lat, 0)
+    const dist = Cartesian3.distance(viewer.camera.positionWC, dest)
+    const duration = Math.min(1.15, Math.max(0.45, dist / 3_500_000))
+    const range = Math.min(3500, Math.max(2000, 2000 + (dist / 5_000_000) * 1500))
+    const offset = new HeadingPitchRange(
+      CesiumMath.toRadians(0),
+      CesiumMath.toRadians(-40),
+      range
+    )
+
+    const onFlightComplete = () => {
+      autoRotateControllerRef.current?.onFlightEnd()
+      // Apply venue camera lock after flight completes
+      const markerEntity = markerManagerRef.current?.getMarkerEntity?.(selectedStopId)
+      if (markerEntity && viewer) {
+        applyVenueCameraLock(viewer, markerEntity)
+      }
+    }
+
+    const markerEntity = markerManagerRef.current?.getMarkerEntity?.(selectedStopId)
+
+    if (markerEntity) {
+      viewer.flyTo(markerEntity, { duration, offset }).then(onFlightComplete).catch(onFlightComplete)
+    } else {
+      viewer.camera.flyTo({
+        destination: Cartesian3.fromDegrees(selectedStop.lng, selectedStop.lat, range),
+        orientation: { heading: 0, pitch: CesiumMath.toRadians(-40), roll: 0 },
+        duration,
+        easingFunction: EasingFunction.QUADRATIC_IN_OUT,
+        complete: onFlightComplete,
+        cancel: onFlightComplete,
+      })
+    }
+  }, [selectedStopId, stops, isReady])
 
   // Load buildings when a stop is selected (fire-and-forget, never blocks camera)
   useEffect(() => {

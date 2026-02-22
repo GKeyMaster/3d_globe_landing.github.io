@@ -8,17 +8,9 @@ import { StopList } from './components/StopList'
 import { StopPanel } from './components/StopPanel'
 import { ScenarioToggle } from './components/ScenarioToggle'
 import { CreditsPill } from './components/CreditsPill'
-import { CloudTransition } from './components/CloudTransition'
 import { PremiumLoader, type LoadingStage } from './components/PremiumLoader'
 import { loadStops } from './lib/data/loadStops'
 import type { Stop, Scenario } from './lib/data/types'
-import type { CloudTransitionHandle } from './components/CloudTransition'
-
-const nextAnimationFrame = () => new Promise<void>(r => requestAnimationFrame(() => r()))
-
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
 import 'cesium/Build/Cesium/Widgets/widgets.css'
 import './styles/tokens.css'
 import './styles/layout.css'
@@ -37,23 +29,7 @@ function App() {
   const [cameraManager, setCameraManager] = useState<PremiumCameraManager | null>(null)
   const flyToOverviewRef = useRef<((stops: Stop[]) => void) | null>(null)
   const flyToOverviewAboveStopRef = useRef<((stop: Stop) => Promise<void>) | null>(null)
-  const flyToStopRef = useRef<((stop: Stop) => Promise<void>) | null>(null)
-  const cloudRef = useRef<CloudTransitionHandle | null>(null)
-  const setMapModeInstantRef = useRef<((mode: 'overview' | 'venue') => void) | null>(null)
-
-  const runCloudWrapped = useCallback(async <T,>(action: () => Promise<T> | T): Promise<T> => {
-    const cloud = cloudRef.current
-    if (!cloud) return (await action()) as T
-
-    await cloud.playIn()
-    await cloud.onOpaqueOnce()
-    await nextAnimationFrame()
-    const result = await action()
-    await nextAnimationFrame()
-    await cloud.playOut()
-    return result
-  }, [])
-
+  
   // Premium loading state machine
   const [loadingStage, setLoadingStage] = useState<LoadingStage>('boot')
   const [loadingProgress, setLoadingProgress] = useState(0.05)
@@ -109,53 +85,41 @@ function App() {
 
   const selectedStop = stops.find(stop => stop.id === selectedStopId) || null
 
-  // Selecting a venue: update state only. The useEffect drives the flight.
+  // Selecting a venue: enter venue mode and set selection
   const handleStopSelection = useCallback((stopId: string) => {
     const stop = stops.find(s => s.id === stopId)
-    if (!stop) return
-
-    console.log(`[App] Selecting stop: ${stop.city} - ${stop.venue}`)
-    setSelectedStopId(stopId)
-    setLastSelectedStopId(stopId)
-    setViewMode('venue')
+    if (stop) {
+      console.log(`[App] Selecting stop: ${stop.city} - ${stop.venue}`)
+      setSelectedStopId(stopId)
+      setLastSelectedStopId(stopId)
+      setViewMode('venue')
+    } else {
+      setSelectedStopId(stopId)
+      setLastSelectedStopId(stopId)
+      setViewMode('venue')
+    }
   }, [stops])
 
-  // Single source of truth: when viewMode=venue and selectedStopId, ALWAYS fly to that stop
-  useEffect(() => {
-    if (viewMode !== 'venue' || !selectedStopId || !flyToStopRef.current) return
-    const stop = stops.find(s => s.id === selectedStopId)
-    if (!stop?.lat || !stop?.lng) return
-
-    runCloudWrapped(async () => {
-      setMapModeInstantRef.current?.('venue')
-      await flyToStopRef.current?.(stop) ?? Promise.resolve()
-    })
-  }, [viewMode, selectedStopId, stops, runCloudWrapped])
-
-  // Overview button: clouds in -> imagery swap at peak -> fly out -> clouds out
+  // Overview button: fly out to overview above last selected venue, then deselect
   const handleOverviewClick = useCallback(() => {
     const sortedStops = [...stops].sort((a, b) => a.order - b.order)
     const firstStopId = sortedStops[0]?.id ?? null
     const anchorStopId = lastSelectedStopId ?? selectedStopId ?? firstStopId
     const anchorStop = anchorStopId ? stops.find(s => s.id === anchorStopId) : null
 
-    runCloudWrapped(async () => {
-      setMapModeInstantRef.current?.('overview')
-      setViewMode('overview')
+    setViewMode('overview')
 
-      if (flyToOverviewAboveStopRef.current && anchorStop && anchorStop.lat != null && anchorStop.lng != null) {
-        console.log('[App] Overview: flying out above last venue')
-        await flyToOverviewAboveStopRef.current(anchorStop)
-      } else if (flyToOverviewRef.current && stops.length > 0) {
-        console.log('[App] Overview: no anchor, using default')
-        flyToOverviewRef.current(stops)
-        await delay(800)
-      } else {
-        await delay(400)
-      }
+    if (flyToOverviewAboveStopRef.current && anchorStop && anchorStop.lat != null && anchorStop.lng != null) {
+      console.log('[App] Overview: flying out above last venue')
+      flyToOverviewAboveStopRef.current(anchorStop).then(() => {
+        setSelectedStopId(null)
+      })
+    } else if (flyToOverviewRef.current && stops.length > 0) {
+      console.log('[App] Overview: no anchor, using default')
+      flyToOverviewRef.current(stops)
       setSelectedStopId(null)
-    })
-  }, [stops, lastSelectedStopId, selectedStopId, runCloudWrapped])
+    }
+  }, [stops, lastSelectedStopId, selectedStopId])
 
   const handleImageryReady = useCallback(() => {
     console.log('[App] Imagery preload completed')
@@ -254,12 +218,7 @@ function App() {
         onSelectStop={handleStopSelection}
         onFlyToOverview={(fn) => { flyToOverviewRef.current = fn }}
         onFlyToOverviewAboveStop={(fn) => { flyToOverviewAboveStopRef.current = fn }}
-        onFlyToStop={(fn) => { flyToStopRef.current = fn }}
-        onMapModeControllerReady={(fn) => { setMapModeInstantRef.current = fn }}
       />
-
-      {/* Fly-through-clouds transition overlay (imperative ref API) */}
-      <CloudTransition ref={cloudRef} />
       
       {/* Premium Layout System */}
       <div 
