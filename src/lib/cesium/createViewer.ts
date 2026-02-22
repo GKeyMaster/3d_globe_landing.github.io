@@ -1,6 +1,7 @@
 import {
   Viewer,
   EllipsoidTerrainProvider,
+  UrlTemplateImageryProvider,
   WebMapTileServiceImageryProvider,
   WebMercatorTilingScheme,
   Credit,
@@ -10,7 +11,6 @@ import {
 } from 'cesium'
 import type { ImageryLayer } from 'cesium'
 import { addNightLightsLayer } from './imagery/nightLights'
-import { createVenueImageryProvider } from './imagery/createVenueImageryProvider'
 
 export interface ViewerCreationResult {
   viewer: Viewer
@@ -26,7 +26,7 @@ function easeInOutQuad(t: number): number {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
 }
 
-/** Crossfade imagery layers. Base (GIBS) always alpha=1; venue (OSM) overlay fades in. */
+/** Crossfade imagery layers over 350ms. overview: GIBS visible; venue: OSM visible. */
 export function setMapMode(
   mode: MapMode,
   viewer: Viewer,
@@ -34,7 +34,7 @@ export function setMapMode(
   osmLayer: ImageryLayer,
   options?: { routeEntities?: Array<{ show: unknown }> }
 ): void {
-  const targetGibs = 1 // Base layer ALWAYS visible (no black holes)
+  const targetGibs = mode === 'overview' ? 1 : 0
   const targetOsm = mode === 'venue' ? 1 : 0
   const startGibs = gibsLayer.alpha
   const startOsm = osmLayer.alpha
@@ -111,11 +111,12 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
   // Night-only city lights (visible only on night side)
   addNightLightsLayer(viewer, gibsLayer)
 
-  // CITY/STREET layer (OSM raster) – overlay on top of base
-  const osm = createVenueImageryProvider({
+  // CITY/STREET layer (OSM raster)
+  const osm = new UrlTemplateImageryProvider({
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    projection: 'webMercator',
-    credit: '© OpenStreetMap contributors',
+    tilingScheme: new WebMercatorTilingScheme(),
+    maximumLevel: 19,
+    credit: new Credit('© OpenStreetMap contributors'),
   })
   const osmLayer = viewer.imageryLayers.addImageryProvider(osm)
   osmLayer.alpha = 0.0
