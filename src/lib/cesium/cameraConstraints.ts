@@ -1,8 +1,6 @@
 import type { Viewer } from 'cesium'
 import { Cartesian3, Cartographic, Ellipsoid, Math as CesiumMath } from 'cesium'
 
-const MIN_HEIGHT_ABOVE_ELLIPSOID = 1
-
 export type ViewMode = 'overview' | 'venue' | 'transition'
 
 const VENUE_MIN_ZOOM = 500
@@ -12,6 +10,7 @@ const OVERVIEW_MAX_ZOOM = 30_000_000
 
 const CLAMP_FLY_DURATION = 0.3
 const WHEEL_CLAMP_DELAY_MS = 150
+const MIN_HEIGHT_ABOVE_SURFACE = 0
 
 let currentViewMode: ViewMode = 'overview'
 let lastWheelTs = 0
@@ -37,6 +36,29 @@ export function applyCameraConstraints(viewer: Viewer, viewMode: ViewMode): void
   }
 }
 
+
+/**
+ * Ensures camera stays at or above the ellipsoid surface (for venue mode with collision disabled).
+ */
+function clampCameraAboveSurface(viewer: Viewer): void {
+  if (currentViewMode !== 'venue') return
+
+  const camera = viewer.camera
+  const ellipsoid = viewer.scene.globe.ellipsoid
+
+  const carto = Cartographic.fromCartesian(camera.positionWC, ellipsoid)
+  if (carto.height >= MIN_HEIGHT_ABOVE_SURFACE) return
+
+  carto.height = MIN_HEIGHT_ABOVE_SURFACE
+  const surfacePos = ellipsoid.cartographicToCartesian(carto)
+  camera.setView({
+    destination: surfacePos,
+    orientation: {
+      direction: camera.directionWC,
+      up: camera.upWC,
+    },
+  })
+}
 
 /**
  * Clamps camera to zoom bounds with a short flyTo if out of range.
@@ -82,16 +104,6 @@ function clampCameraToBounds(viewer: Viewer): void {
       Cartesian3.multiplyByScalar(direction, clampedDist, new Cartesian3()),
       new Cartesian3()
     )
-    const carto = Cartographic.fromCartesian(newPos, ellipsoid)
-    if (carto.height < MIN_HEIGHT_ABOVE_ELLIPSOID) {
-      const surface = ellipsoid.cartographicToCartesian(new Cartographic(carto.longitude, carto.latitude, 0))
-      const normal = Cartesian3.normalize(surface, new Cartesian3())
-      newPos = Cartesian3.add(
-        surface,
-        Cartesian3.multiplyByScalar(normal, MIN_HEIGHT_ABOVE_ELLIPSOID, new Cartesian3()),
-        new Cartesian3()
-      )
-    }
   } else {
     const radius = ellipsoid.maximumRadius
     newPos = Cartesian3.multiplyByScalar(
@@ -134,29 +146,9 @@ function scheduleClampCheck(viewer: Viewer): void {
 }
 
 /**
- * Keeps camera above ellipsoid surface in venue mode (runs every frame).
- */
-function enforceMinHeight(viewer: Viewer): void {
-  if (currentViewMode !== 'venue') return
-
-  const camera = viewer.camera
-  const ellipsoid = viewer.scene.globe.ellipsoid
-  const carto = Cartographic.fromCartesian(camera.positionWC, ellipsoid)
-  if (carto.height >= MIN_HEIGHT_ABOVE_ELLIPSOID) return
-
-  const surface = ellipsoid.cartographicToCartesian(new Cartographic(carto.longitude, carto.latitude, 0))
-  const normal = Cartesian3.normalize(surface, new Cartesian3())
-  const safePos = Cartesian3.add(
-    surface,
-    Cartesian3.multiplyByScalar(normal, MIN_HEIGHT_ABOVE_ELLIPSOID, new Cartesian3()),
-    new Cartesian3()
-  )
-  Cartesian3.clone(safePos, camera.position)
-}
-
-/**
- * Sets up wheel listener and preRender height enforcement.
- * Call once after viewer creation. Uses current viewMode from applyCameraConstraints.
+ * Sets up wheel listener and preRender surface clamp.
+ * - Wheel: smoothly clamp zoom when out of bounds.
+ * - PreRender: keep camera at or above ellipsoid surface (venue mode, collision off).
  */
 export function setupZoomClampListener(viewer: Viewer): () => void {
   const canvas = viewer.scene.canvas
@@ -167,7 +159,7 @@ export function setupZoomClampListener(viewer: Viewer): () => void {
   }
 
   const onPreRender = () => {
-    enforceMinHeight(viewer)
+    clampCameraAboveSurface(viewer)
   }
 
   canvas.addEventListener('wheel', onWheel, { passive: true })
