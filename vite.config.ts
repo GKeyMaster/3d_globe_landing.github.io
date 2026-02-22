@@ -4,6 +4,10 @@ import { viteStaticCopy } from 'vite-plugin-static-copy'
 import { resolve } from 'path'
 
 export default defineConfig({
+  resolve: {
+    alias: { '@': resolve(__dirname, 'src') }
+  },
+  build: { assetsInlineLimit: 0 },
   plugins: [
     react(),
     viteStaticCopy({

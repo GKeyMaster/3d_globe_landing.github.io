@@ -15,7 +15,7 @@ import { RouteManager } from '../lib/cesium/addRoute'
 import { BuildingManager } from '../lib/cesium/buildingUtils'
 import { AutoRotateController, setOverviewCamera, removeOverviewConstraints, applyOverviewConstraints } from '../lib/cesium/autoRotate'
 import { applyVenueCameraLock, removeVenueCameraLock } from '../lib/cesium/venueCameraLock'
-import { applyVenueFog } from '../lib/cesium/venueFog'
+import { enableVenueFog, disableVenueFog } from '../lib/cesium/fogStage'
 import { applyCameraConstraints, setupZoomClampListener } from '../lib/cesium/cameraConstraints'
 import { OVERVIEW_DISTANCE_MULTIPLIER } from '../lib/cesium/camera/overview'
 import { getEarthRadius, computeEarthCenteredPoseAboveLatLng } from '../lib/cesium/camera/poses'
@@ -338,10 +338,15 @@ export function Globe({
     }
   }, [viewMode, isReady])
 
-  // Venue fog: enabled in venue mode (atmospheric depth), disabled in overview
+  // Venue fog: depth-based post-process (visible); scene fog disabled to avoid double fog
   useEffect(() => {
     if (viewerRef.current && isReady) {
-      applyVenueFog(viewerRef.current, viewMode)
+      if (viewMode === 'venue') {
+        viewerRef.current.scene.fog.enabled = false
+        enableVenueFog(viewerRef.current)
+      } else {
+        disableVenueFog(viewerRef.current)
+      }
       viewerRef.current.scene.requestRender()
     }
   }, [viewMode, isReady])

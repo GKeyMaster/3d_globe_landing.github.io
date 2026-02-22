@@ -1,48 +1,58 @@
 import {
   ImageMaterialProperty,
+  ColorMaterialProperty,
   Cartesian2,
   Color,
   ConstantProperty,
 } from 'cesium'
+import type { MaterialProperty } from 'cesium'
 
-import facade1Url from '../../assets/textures/buildings/facade_01.webp?url'
-import facade2Url from '../../assets/textures/buildings/facade_02.webp?url'
-import roof1Url from '../../assets/textures/buildings/roof_01.webp?url'
+import facade1Url from '@/assets/textures/buildings/facade_01.webp?url'
+import facade2Url from '@/assets/textures/buildings/facade_02.webp?url'
+import roof1Url from '@/assets/textures/buildings/roof_01.webp?url'
 
-// Dev log once
 console.log('Building texture URLs:', { facade1Url, facade2Url, roof1Url })
+if (import.meta.env.DEV && [facade1Url, facade2Url, roof1Url].some((u) => u.startsWith('data:'))) {
+  console.warn('Textures are still inlined; check assetsInlineLimit and file sizes')
+}
 
 let useFallbackProcedural = false
 let preloadPromise: Promise<void> | null = null
-let fallbackTextureDataUrl: string | null = null
 
 /**
- * Load an image from URL. Rejects on failure.
+ * Preload an image with decode-safe logic. Uses img.decode() when available.
  */
-function loadImage(url: string): Promise<HTMLImageElement> {
+function preloadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
-    img.onload = () => resolve(img)
+    img.decoding = 'async'
     img.onerror = () => reject(new Error(`Failed to load image: ${url}`))
+    if (typeof img.decode === 'function') {
+      img.onload = () => {
+        img.decode().then(() => resolve(img)).catch(() => resolve(img))
+      }
+    } else {
+      img.onload = () => resolve(img)
+    }
     img.src = url
   })
 }
 
 /**
- * Preload all 3 building textures. On any failure, sets useFallbackProcedural=true.
+ * Preload all 3 building textures. On any failure, sets useFallbackProcedural=true and logs the failing url.
  */
 function preloadTextures(): Promise<void> {
   if (preloadPromise) return preloadPromise
-  preloadPromise = Promise.all([
-    loadImage(facade1Url),
-    loadImage(facade2Url),
-    loadImage(roof1Url),
-  ])
-    .then(() => {})
-    .catch((err) => {
-      console.warn('[Buildings] Texture preload failed, using procedural fallback:', err?.message ?? err)
+  const urls = [facade1Url, facade2Url, roof1Url] as const
+  preloadPromise = Promise.allSettled(urls.map((u) => preloadImage(u))).then((results) => {
+    const failed = results
+      .map((r, i) => (r.status === 'rejected' ? urls[i] : null))
+      .filter((u): u is string => u != null)
+    if (failed.length > 0) {
+      failed.forEach((u) => console.warn('[Buildings] Texture preload failed:', u))
       useFallbackProcedural = true
-    })
+    }
+  })
   return preloadPromise
 }
 
@@ -54,25 +64,26 @@ export function ensureTexturesReady(): Promise<void> {
   return preloadTextures()
 }
 
-function getFallbackTextureDataUrl(): string {
-  if (fallbackTextureDataUrl) return fallbackTextureDataUrl
-  const c = document.createElement('canvas')
-  c.width = 64
-  c.height = 64
-  const ctx = c.getContext('2d')!
-  ctx.fillStyle = '#1a1a1a'
-  ctx.fillRect(0, 0, 64, 64)
-  const img = ctx.getImageData(0, 0, 64, 64)
-  for (let i = 0; i < img.data.length; i += 4) {
-    const n = Math.floor((Math.random() * 40) - 10)
-    img.data[i] = Math.min(255, Math.max(0, img.data[i] + n))
-    img.data[i + 1] = Math.min(255, Math.max(0, img.data[i + 1] + n))
-    img.data[i + 2] = Math.min(255, Math.max(0, img.data[i + 2] + n))
-    img.data[i + 3] = 255
-  }
-  ctx.putImageData(img, 0, 0)
-  fallbackTextureDataUrl = c.toDataURL('image/png')
-  return fallbackTextureDataUrl
+function getFallbackFacadeColor(hash: number): Color {
+  const t = (hash % 21) / 20
+  const mult = 0.85 + t * 0.25
+  return Color.fromBytes(
+    Math.round(90 * mult),
+    Math.round(90 * mult),
+    Math.round(95 * mult),
+    255
+  )
+}
+
+function getFallbackRoofColor(hash: number): Color {
+  const t = ((hash >> 8) % 21) / 20
+  const mult = 0.92 + t * 0.18
+  return Color.fromBytes(
+    Math.round(100 * mult),
+    Math.round(100 * mult),
+    Math.round(105 * mult),
+    255
+  )
 }
 
 /**
@@ -115,27 +126,32 @@ function getRoofTint(hash: number): Color {
 }
 
 /**
- * Get facade material for a building. Uses photo texture or procedural fallback.
+ * Get facade material. Reuses cached ImageMaterialProperty; per-building variation via color only.
+ * Note: Shared material + per-entity color would require CallbackProperty with entity context (not available).
+ * We create new materials with shared URLs; Cesium caches textures.
  */
-export function getFacadeMaterial(hash: number): ImageMaterialProperty {
-  const tint = getFacadeTint(hash)
-  const image = useFallbackProcedural ? getFallbackTextureDataUrl() : chooseFacadeTexturePath(hash)
+export function getFacadeMaterial(hash: number): MaterialProperty {
+  if (useFallbackProcedural) {
+    return new ColorMaterialProperty(new ConstantProperty(getFallbackFacadeColor(hash)))
+  }
+  const image = (hash % 2) === 0 ? facade1Url : facade2Url
   return new ImageMaterialProperty({
     image,
     repeat: new Cartesian2(4, 1),
-    color: new ConstantProperty(tint),
+    color: new ConstantProperty(getFacadeTint(hash)),
   })
 }
 
 /**
- * Get roof material for a building. Uses photo texture or procedural fallback.
+ * Get roof material. Same pattern; roof slightly lighter when fallback.
  */
-export function getRoofMaterial(hash: number): ImageMaterialProperty {
-  const tint = getRoofTint(hash)
-  const image = useFallbackProcedural ? getFallbackTextureDataUrl() : roof1Url
+export function getRoofMaterial(hash: number): MaterialProperty {
+  if (useFallbackProcedural) {
+    return new ColorMaterialProperty(new ConstantProperty(getFallbackRoofColor(hash)))
+  }
   return new ImageMaterialProperty({
-    image,
+    image: roof1Url,
     repeat: new Cartesian2(2, 2),
-    color: new ConstantProperty(tint),
+    color: new ConstantProperty(getRoofTint(hash)),
   })
 }
