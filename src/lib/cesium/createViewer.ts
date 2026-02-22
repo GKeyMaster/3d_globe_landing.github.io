@@ -10,6 +10,7 @@ import {
   SunLight
 } from 'cesium'
 import type { ImageryLayer } from 'cesium'
+import { addNightLightsLayer } from './imagery/nightLights'
 
 export interface ViewerCreationResult {
   viewer: Viewer
@@ -106,6 +107,9 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
   })
   const gibsLayer = viewer.imageryLayers.addImageryProvider(gibs)
   gibsLayer.alpha = 1.0
+
+  // Night-only city lights (visible only on night side)
+  addNightLightsLayer(viewer, gibsLayer)
 
   // CITY/STREET layer (OSM raster)
   const osm = new UrlTemplateImageryProvider({

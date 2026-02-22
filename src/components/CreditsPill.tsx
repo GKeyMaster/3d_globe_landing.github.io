@@ -74,6 +74,19 @@ export function CreditsPill() {
                 opacity: 0.7
               }}
             />
+            <div
+              style={{
+                fontSize: '0.65rem',
+                color: 'var(--text-muted)',
+                opacity: 0.5,
+                lineHeight: 1.4,
+                marginTop: 'var(--space-2)',
+                paddingTop: 'var(--space-2)',
+                borderTop: '1px solid var(--border)'
+              }}
+            >
+              We acknowledge the use of imagery provided by services from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth Science Data and Information System (ESDIS).
+            </div>
           </div>
         </div>
       )}
