@@ -1,5 +1,6 @@
 import { Viewer, Cartesian3 } from 'cesium'
 import { setOverviewCameraCentered, type AnchorLonLat } from './camera/overview'
+import { applyCameraConstraints } from './cameraConstraints'
 
 /**
  * Sets the camera to show the entire Earth centered in the viewport.
@@ -12,19 +13,21 @@ export function setOverviewCamera(viewer: Viewer, anchor?: AnchorLonLat): void {
  * Applies overview zoom constraints so the camera stays at whole-globe framing.
  */
 export function applyOverviewConstraints(viewer: Viewer): void {
-  const radius = viewer.scene.globe.ellipsoid.maximumRadius
-  const controller = viewer.scene.screenSpaceCameraController
-  controller.minimumZoomDistance = radius * 2.2  // whole globe visible
-  controller.maximumZoomDistance = radius * 6.0  // allow far zoom out
+  applyCameraConstraints(viewer, 'overview')
 }
 
 /**
- * Removes overview constraints (for venue mode - allow free zoom).
+ * Applies venue zoom constraints (near-city framing).
+ */
+export function applyVenueConstraints(viewer: Viewer): void {
+  applyCameraConstraints(viewer, 'venue')
+}
+
+/**
+ * Relaxes constraints for camera flights (e.g. overview → venue transition).
  */
 export function removeOverviewConstraints(viewer: Viewer): void {
-  const controller = viewer.scene.screenSpaceCameraController
-  controller.minimumZoomDistance = 1.0
-  controller.maximumZoomDistance = Number.POSITIVE_INFINITY
+  applyCameraConstraints(viewer, 'transition')
 }
 
 const AUTO_ROTATE_SPEED = 0.06 // rad/sec (4x)

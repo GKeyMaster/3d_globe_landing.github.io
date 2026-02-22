@@ -13,6 +13,7 @@ import { RouteManager } from '../lib/cesium/addRoute'
 import { BuildingManager } from '../lib/cesium/buildingUtils'
 import { AutoRotateController, setOverviewCamera, removeOverviewConstraints, applyOverviewConstraints } from '../lib/cesium/autoRotate'
 import { applyVenueCameraLock, removeVenueCameraLock } from '../lib/cesium/venueCameraLock'
+import { applyCameraConstraints, setupZoomClampListener } from '../lib/cesium/cameraConstraints'
 import { OVERVIEW_DISTANCE_MULTIPLIER } from '../lib/cesium/camera/overview'
 import { getEarthRadius, computeEarthCenteredPoseAboveLatLng } from '../lib/cesium/camera/poses'
 import type { Stop } from '../lib/data/types'
@@ -50,6 +51,7 @@ export function Globe({
   const routeManagerRef = useRef<RouteManager | null>(null)
   const buildingManagerRef = useRef<BuildingManager | null>(null)
   const autoRotateControllerRef = useRef<AutoRotateController | null>(null)
+  const zoomClampCleanupRef = useRef<(() => void) | null>(null)
   const initOnceRef = useRef(false)
   const didInitialOverviewRef = useRef(false)
   const allowFlyToSelectedRef = useRef(false)
@@ -193,6 +195,8 @@ export function Globe({
         const initialAnchor = { lon, lat: 0 }
         autoRotateControllerRef.current.initialize(initialAnchor)
 
+        zoomClampCleanupRef.current = setupZoomClampListener(result.viewer)
+
         // Initialize markers and routes if stops are available
         if (stops.length > 0) {
           console.log('[Globe] Initializing markers and routes on viewer creation')
@@ -234,6 +238,8 @@ export function Globe({
         autoRotateControllerRef.current.destroy()
         autoRotateControllerRef.current = null
       }
+      zoomClampCleanupRef.current?.()
+      zoomClampCleanupRef.current = null
       if (viewerRef.current) {
         viewerRef.current.destroy()
         viewerRef.current = null
@@ -360,9 +366,10 @@ export function Globe({
 
     const onFlightComplete = () => {
       autoRotateControllerRef.current?.onFlightEnd()
-      // Apply venue camera lock after flight completes
+      // Apply venue camera lock and zoom constraints after flight completes
       const markerEntity = markerManagerRef.current?.getMarkerEntity?.(selectedStopId)
       if (markerEntity && viewer) {
+        applyCameraConstraints(viewer, 'venue')
         applyVenueCameraLock(viewer, markerEntity)
       }
     }
