@@ -2,11 +2,14 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import type { Viewer, ImageryLayer } from 'cesium'
 import { 
   Cartesian3, 
+  Color,
+  ConstantProperty,
   Math as CesiumMath, 
   HeadingPitchRange,
   EasingFunction,
   Transforms,
-  Matrix4
+  Matrix4,
+  type Entity,
 } from 'cesium'
 import { createViewer, setMapMode } from '../lib/cesium/createViewer'
 import { VenueMarkerManager, type MarkerHoverInfo } from '../lib/cesium/markerUtils'
@@ -54,6 +57,7 @@ export function Globe({
   const routeManagerRef = useRef<RouteManager | null>(null)
   const buildingManagerRef = useRef<BuildingManager | null>(null)
   const venueFogApiRef = useRef<ReturnType<typeof ensureVenueFog> | null>(null)
+  const debugRingRef = useRef<Entity | null>(null)
   const autoRotateControllerRef = useRef<AutoRotateController | null>(null)
   const zoomClampCleanupRef = useRef<(() => void) | null>(null)
   const initOnceRef = useRef(false)
@@ -359,6 +363,45 @@ export function Globe({
       api.setEnabled(false)
     }
     viewerRef.current.scene.requestRender()
+  }, [viewMode, selectedStopId, stops, isReady])
+
+  // DEV-only debug ring at 2000m around selected venue
+  useEffect(() => {
+    const viewer = viewerRef.current
+    if (!viewer || !isReady) return
+
+    if (debugRingRef.current) {
+      viewer.entities.remove(debugRingRef.current)
+      debugRingRef.current = null
+    }
+
+    if (!import.meta.env.DEV) return
+    if (viewMode !== 'venue' || !selectedStopId || stops.length === 0) return
+
+    const stop = stops.find((s) => s.id === selectedStopId)
+    if (stop?.lat == null || stop?.lng == null) return
+
+    const position = Cartesian3.fromDegrees(stop.lng, stop.lat, 0)
+    const ring = viewer.entities.add({
+      name: 'debug-fog-ring-2000m',
+      position,
+      ellipse: {
+        semiMajorAxis: 2000,
+        semiMinorAxis: 2000,
+        height: 0,
+        material: Color.fromCssColorString('rgba(255,245,230,0.08)'),
+        outline: true,
+        outlineColor: new ConstantProperty(Color.fromCssColorString('rgba(220,210,190,0.5)')),
+        outlineWidth: 1,
+      },
+    })
+    debugRingRef.current = ring
+    return () => {
+      if (debugRingRef.current) {
+        viewer.entities.remove(debugRingRef.current)
+        debugRingRef.current = null
+      }
+    }
   }, [viewMode, selectedStopId, stops, isReady])
 
   // Fly to selected stop when selection changes (direct viewer.flyTo)

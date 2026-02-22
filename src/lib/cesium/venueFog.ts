@@ -15,22 +15,26 @@ void main() {
   vec4 color = texture(colorTexture, v_textureCoordinates);
   float depth = czm_readDepth(depthTexture, v_textureCoordinates);
 
-  if (depth >= 1.0) {
+  if (depth > 0.9999) {
     out_FragColor = color;
     return;
   }
 
-  vec2 xy = vec2((v_textureCoordinates.x * 2.0 - 1.0), ((1.0 - v_textureCoordinates.y) * 2.0 - 1.0));
-  vec4 posEC = czm_inverseProjection * vec4(xy, depth, 1.0);
-  posEC = posEC / posEC.w;
+  vec4 eye = czm_windowToEyeCoordinates(gl_FragCoord.xy, depth);
+  vec3 posEC = eye.xyz / eye.w;
+  vec3 venueEC = (czm_view * vec4(u_venueWC, 1.0)).xyz;
+  float d = length(posEC - venueEC);
+  d = min(d, u_fogEnd);
 
-  vec4 world = czm_inverseView * vec4(posEC.xyz, 1.0);
-  vec3 positionWC = world.xyz / world.w;
-
-  float d = distance(positionWC, u_venueWC);
-
-  float fogFactor = smoothstep(u_fogStart, u_fogEnd, d);
-  fogFactor = clamp(fogFactor, 0.0, 1.0);
+  float start = u_fogStart;
+  float w = 50.0;
+  float fogFactor = 0.0;
+  if (d > start - w) {
+    fogFactor = smoothstep(start - w, u_fogEnd, d);
+  }
+  if (d <= u_fogStart) {
+    fogFactor = 0.0;
+  }
 
   vec3 rgb = mix(color.rgb, u_fogColor, fogFactor);
   out_FragColor = vec4(rgb, color.a);
