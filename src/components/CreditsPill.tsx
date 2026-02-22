@@ -14,7 +14,7 @@ export function CreditsPill() {
 
   return (
     <div
-      className="relative"
+      className="relative inline-block self-end"
       onMouseEnter={() => setIsExpanded(true)}
       onMouseLeave={() => setIsExpanded(false)}
     >
@@ -39,15 +39,18 @@ export function CreditsPill() {
       {/* Expanded Credits Panel */}
       {isExpanded && (
         <div
-          className="absolute bottom-full right-0 mb-2 glass-panel"
+          className="absolute right-0 glass-panel"
           style={{
+            bottom: '100%',
+            marginBottom: '8px',
             minWidth: '280px',
             maxWidth: '400px',
             padding: 'var(--space-3)',
             fontSize: 'var(--font-size-xs)',
             color: 'var(--text-muted)',
             lineHeight: 'var(--line-height-relaxed)',
-            animation: 'fadeInUp var(--transition-fast) ease-out forwards'
+            zIndex: 100,
+            animation: 'fadeIn var(--transition-fast) ease-out forwards'
           }}
         >
           <div className="space-y-2">
