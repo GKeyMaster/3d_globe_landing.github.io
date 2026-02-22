@@ -8,16 +8,28 @@ let aboveSurfaceRemoval: (() => void) | null = null
 function enforceCameraAboveSurface(viewer: Viewer): void {
   const camera = viewer.camera
   const ellipsoid = viewer.scene.globe.ellipsoid
+  const trackedEntity = viewer.trackedEntity
   const carto = Cartographic.fromCartesian(camera.positionWC, ellipsoid)
 
   if (carto.height >= MIN_HEIGHT_ABOVE_SURFACE) return
 
   const clamped = new Cartographic(carto.longitude, carto.latitude, MIN_HEIGHT_ABOVE_SURFACE)
   const surfacePos = ellipsoid.cartographicToCartesian(clamped, new Cartesian3())
-  camera.setView({
-    destination: surfacePos,
-    orientation: { direction: camera.directionWC, up: camera.upWC },
-  })
+
+  const venuePos = trackedEntity?.position?.getValue?.(viewer.clock.currentTime)
+  if (venuePos) {
+    const direction = Cartesian3.normalize(Cartesian3.subtract(venuePos, surfacePos, new Cartesian3()), new Cartesian3())
+    const up = Cartesian3.normalize(surfacePos, new Cartesian3())
+    camera.setView({
+      destination: surfacePos,
+      orientation: { direction, up },
+    })
+  } else {
+    camera.setView({
+      destination: surfacePos,
+      orientation: { direction: camera.directionWC, up: camera.upWC },
+    })
+  }
 }
 
 const CONTROLLER_DEFAULTS = {
