@@ -3,12 +3,8 @@ import { Cartesian3, Ellipsoid, Math as CesiumMath } from 'cesium'
 
 export type ViewMode = 'overview' | 'venue' | 'transition'
 
-export const VENUE_MIN_ZOOM = 500
-export const VENUE_MAX_ZOOM = 1000
-
-/** Default venue view: distance (m), pitch (degrees, negative = looking down) */
-export const VENUE_DEFAULT_DISTANCE = 1000
-export const VENUE_DEFAULT_PITCH_DEG = -35
+const VENUE_MIN_ZOOM = 500
+const VENUE_MAX_ZOOM = 1500
 const OVERVIEW_MIN_ZOOM = 2_000_000
 const OVERVIEW_MAX_ZOOM = 30_000_000
 

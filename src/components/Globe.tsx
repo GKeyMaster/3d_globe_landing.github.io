@@ -13,13 +13,7 @@ import { RouteManager } from '../lib/cesium/addRoute'
 import { BuildingManager } from '../lib/cesium/buildingUtils'
 import { AutoRotateController, setOverviewCamera, removeOverviewConstraints, applyOverviewConstraints } from '../lib/cesium/autoRotate'
 import { applyVenueCameraLock, removeVenueCameraLock } from '../lib/cesium/venueCameraLock'
-import {
-  applyCameraConstraints,
-  setupZoomClampListener,
-  VENUE_MAX_ZOOM,
-  VENUE_DEFAULT_DISTANCE,
-  VENUE_DEFAULT_PITCH_DEG,
-} from '../lib/cesium/cameraConstraints'
+import { applyCameraConstraints, setupZoomClampListener } from '../lib/cesium/cameraConstraints'
 import { OVERVIEW_DISTANCE_MULTIPLIER } from '../lib/cesium/camera/overview'
 import { getEarthRadius, computeEarthCenteredPoseAboveLatLng } from '../lib/cesium/camera/poses'
 import type { Stop } from '../lib/data/types'
@@ -363,46 +357,32 @@ export function Globe({
     const dest = Cartesian3.fromDegrees(selectedStop.lng, selectedStop.lat, 0)
     const dist = Cartesian3.distance(viewer.camera.positionWC, dest)
     const duration = Math.min(1.15, Math.max(0.45, dist / 3_500_000))
-    const defaultOffset = new HeadingPitchRange(
+    const range = 1500
+    const pitchDeg = -32
+    const offset = new HeadingPitchRange(
       CesiumMath.toRadians(0),
-      CesiumMath.toRadians(VENUE_DEFAULT_PITCH_DEG),
-      VENUE_DEFAULT_DISTANCE
+      CesiumMath.toRadians(pitchDeg),
+      range
     )
 
     const onFlightComplete = () => {
       autoRotateControllerRef.current?.onFlightEnd()
+      // Apply venue camera lock and zoom constraints after flight completes
       const markerEntity = markerManagerRef.current?.getMarkerEntity?.(selectedStopId)
       if (markerEntity && viewer) {
         applyCameraConstraints(viewer, 'venue')
         applyVenueCameraLock(viewer, markerEntity)
-        // Ensure default venue view (distance, height, angle) - correct if Cesium landed off-target
-        const entityPos = markerEntity.position?.getValue(viewer.clock.currentTime)
-        if (entityPos) {
-          const camPos = viewer.camera.positionWC
-          const dist = Cartesian3.distance(camPos, entityPos)
-          const needsCorrection = Math.abs(dist - VENUE_DEFAULT_DISTANCE) > 25
-          if (needsCorrection) {
-            viewer.flyTo(markerEntity, {
-              offset: new HeadingPitchRange(
-                CesiumMath.toRadians(0),
-                CesiumMath.toRadians(VENUE_DEFAULT_PITCH_DEG),
-                VENUE_DEFAULT_DISTANCE
-              ),
-              duration: 0.35,
-            })
-          }
-        }
       }
     }
 
     const markerEntity = markerManagerRef.current?.getMarkerEntity?.(selectedStopId)
 
     if (markerEntity) {
-      viewer.flyTo(markerEntity, { duration, offset: defaultOffset }).then(onFlightComplete).catch(onFlightComplete)
+      viewer.flyTo(markerEntity, { duration, offset }).then(onFlightComplete).catch(onFlightComplete)
     } else {
       viewer.camera.flyTo({
-        destination: Cartesian3.fromDegrees(selectedStop.lng, selectedStop.lat, VENUE_DEFAULT_DISTANCE),
-        orientation: { heading: 0, pitch: CesiumMath.toRadians(VENUE_DEFAULT_PITCH_DEG), roll: 0 },
+        destination: Cartesian3.fromDegrees(selectedStop.lng, selectedStop.lat, range),
+        orientation: { heading: 0, pitch: CesiumMath.toRadians(pitchDeg), roll: 0 },
         duration,
         easingFunction: EasingFunction.QUADRATIC_IN_OUT,
         complete: onFlightComplete,
