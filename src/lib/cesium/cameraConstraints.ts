@@ -1,5 +1,5 @@
 import type { Viewer } from 'cesium'
-import { Cartesian3, Cartographic, Ellipsoid, Math as CesiumMath } from 'cesium'
+import { Cartesian3, Ellipsoid, Math as CesiumMath } from 'cesium'
 
 export type ViewMode = 'overview' | 'venue' | 'transition'
 
@@ -10,7 +10,6 @@ const OVERVIEW_MAX_ZOOM = 30_000_000
 
 const CLAMP_FLY_DURATION = 0.3
 const WHEEL_CLAMP_DELAY_MS = 150
-const MIN_HEIGHT_ABOVE_SURFACE = 0
 
 let currentViewMode: ViewMode = 'overview'
 let lastWheelTs = 0
@@ -36,46 +35,6 @@ export function applyCameraConstraints(viewer: Viewer, viewMode: ViewMode): void
   }
 }
 
-
-/**
- * Ensures camera stays at or above the ellipsoid surface (for venue mode with collision disabled).
- * Uses a safe up vector to avoid singular view matrix (direction ∥ up causes non-invertible matrix).
- */
-function clampCameraAboveSurface(viewer: Viewer): void {
-  if (currentViewMode !== 'venue') return
-
-  const camera = viewer.camera
-  const ellipsoid = viewer.scene.globe.ellipsoid
-
-  const carto = Cartographic.fromCartesian(camera.positionWC, ellipsoid)
-  if (carto.height >= MIN_HEIGHT_ABOVE_SURFACE) return
-
-  carto.height = MIN_HEIGHT_ABOVE_SURFACE
-  const surfacePos = ellipsoid.cartographicToCartesian(carto)
-  const direction = Cartesian3.normalize(camera.directionWC, new Cartesian3())
-
-  const radial = Cartesian3.normalize(surfacePos, new Cartesian3())
-  const east = Cartesian3.cross(Cartesian3.UNIT_Z, radial, new Cartesian3())
-  const eastMag = Cartesian3.magnitude(east)
-  let up: Cartesian3
-
-  const eastNorm = eastMag >= 1e-10 ? Cartesian3.normalize(east, east) : Cartesian3.UNIT_X
-  up = Cartesian3.cross(direction, eastNorm, new Cartesian3())
-  const upMag = Cartesian3.magnitude(up)
-  if (upMag < 1e-10) {
-    up = Cartesian3.cross(direction, radial, new Cartesian3())
-    const upMag2 = Cartesian3.magnitude(up)
-    if (upMag2 < 1e-10) up = Cartesian3.clone(Cartesian3.UNIT_X, new Cartesian3())
-    else Cartesian3.normalize(up, up)
-  } else {
-    Cartesian3.normalize(up, up)
-  }
-
-  camera.setView({
-    destination: surfacePos,
-    orientation: { direction, up },
-  })
-}
 
 /**
  * Clamps camera to zoom bounds with a short flyTo if out of range.
@@ -163,9 +122,8 @@ function scheduleClampCheck(viewer: Viewer): void {
 }
 
 /**
- * Sets up wheel listener and preRender surface clamp.
- * - Wheel: smoothly clamp zoom when out of bounds.
- * - PreRender: keep camera at or above ellipsoid surface (venue mode, collision off).
+ * Sets up wheel listener to smoothly clamp camera when zoom exceeds bounds.
+ * Call once after viewer creation. Uses current viewMode from applyCameraConstraints.
  */
 export function setupZoomClampListener(viewer: Viewer): () => void {
   const canvas = viewer.scene.canvas
@@ -175,15 +133,9 @@ export function setupZoomClampListener(viewer: Viewer): () => void {
     scheduleClampCheck(viewer)
   }
 
-  const onPreRender = () => {
-    clampCameraAboveSurface(viewer)
-  }
-
   canvas.addEventListener('wheel', onWheel, { passive: true })
-  viewer.scene.preRender.addEventListener(onPreRender)
 
   return () => {
     canvas.removeEventListener('wheel', onWheel)
-    viewer.scene.preRender.removeEventListener(onPreRender)
   }
 }

@@ -1,4 +1,24 @@
 import type { Viewer, Entity } from 'cesium'
+import { Cartographic, Cartesian3 } from 'cesium'
+
+const MIN_HEIGHT_ABOVE_SURFACE = 1
+
+let aboveSurfaceRemoval: (() => void) | null = null
+
+function enforceCameraAboveSurface(viewer: Viewer): void {
+  const camera = viewer.camera
+  const ellipsoid = viewer.scene.globe.ellipsoid
+  const carto = Cartographic.fromCartesian(camera.positionWC, ellipsoid)
+
+  if (carto.height >= MIN_HEIGHT_ABOVE_SURFACE) return
+
+  const clamped = new Cartographic(carto.longitude, carto.latitude, MIN_HEIGHT_ABOVE_SURFACE)
+  const surfacePos = ellipsoid.cartographicToCartesian(clamped, new Cartesian3())
+  camera.setView({
+    destination: surfacePos,
+    orientation: { direction: camera.directionWC, up: camera.upWC },
+  })
+}
 
 const CONTROLLER_DEFAULTS = {
   enableTranslate: true,
@@ -23,6 +43,14 @@ export function applyVenueCameraLock(viewer: Viewer, entity: Entity): void {
   controller.enableRotate = true
   controller.enableZoom = true
 
+  aboveSurfaceRemoval?.()
+  const listener = () => enforceCameraAboveSurface(viewer)
+  viewer.scene.postRender.addEventListener(listener)
+  aboveSurfaceRemoval = () => {
+    viewer.scene.postRender.removeEventListener(listener)
+    aboveSurfaceRemoval = null
+  }
+
   if (import.meta.env.DEV) {
     console.log('[VenueCameraLock] trackedEntity set', entity.id)
   }
@@ -38,6 +66,8 @@ export function removeVenueCameraLock(viewer: Viewer): void {
     console.log('[VenueCameraLock] trackedEntity cleared')
   }
 
+  aboveSurfaceRemoval?.()
+  aboveSurfaceRemoval = null
   viewer.trackedEntity = undefined
   controller.enableCollisionDetection = true
   controller.enableTranslate = CONTROLLER_DEFAULTS.enableTranslate
