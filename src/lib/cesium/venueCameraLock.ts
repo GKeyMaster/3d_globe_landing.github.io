@@ -15,7 +15,6 @@ const CONTROLLER_DEFAULTS = {
 export function applyVenueCameraLock(viewer: Viewer, entity: Entity): void {
   const controller = viewer.scene.screenSpaceCameraController
 
-  controller.enableCollisionDetection = true
   viewer.trackedEntity = entity
   controller.enableTranslate = false
   controller.enableLook = false

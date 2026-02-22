@@ -1,5 +1,7 @@
 import type { Viewer } from 'cesium'
-import { Cartesian3, Ellipsoid, Math as CesiumMath } from 'cesium'
+import { Cartesian3, Cartographic, Ellipsoid, Math as CesiumMath } from 'cesium'
+
+const MIN_HEIGHT_ABOVE_ELLIPSOID = 1
 
 export type ViewMode = 'overview' | 'venue' | 'transition'
 
@@ -80,6 +82,16 @@ function clampCameraToBounds(viewer: Viewer): void {
       Cartesian3.multiplyByScalar(direction, clampedDist, new Cartesian3()),
       new Cartesian3()
     )
+    const carto = Cartographic.fromCartesian(newPos, ellipsoid)
+    if (carto.height < MIN_HEIGHT_ABOVE_ELLIPSOID) {
+      const surface = ellipsoid.cartographicToCartesian(new Cartographic(carto.longitude, carto.latitude, 0))
+      const normal = Cartesian3.normalize(surface, new Cartesian3())
+      newPos = Cartesian3.add(
+        surface,
+        Cartesian3.multiplyByScalar(normal, MIN_HEIGHT_ABOVE_ELLIPSOID, new Cartesian3()),
+        new Cartesian3()
+      )
+    }
   } else {
     const radius = ellipsoid.maximumRadius
     newPos = Cartesian3.multiplyByScalar(
@@ -122,7 +134,28 @@ function scheduleClampCheck(viewer: Viewer): void {
 }
 
 /**
- * Sets up wheel listener to smoothly clamp camera when zoom exceeds bounds.
+ * Keeps camera above ellipsoid surface in venue mode (runs every frame).
+ */
+function enforceMinHeight(viewer: Viewer): void {
+  if (currentViewMode !== 'venue') return
+
+  const camera = viewer.camera
+  const ellipsoid = viewer.scene.globe.ellipsoid
+  const carto = Cartographic.fromCartesian(camera.positionWC, ellipsoid)
+  if (carto.height >= MIN_HEIGHT_ABOVE_ELLIPSOID) return
+
+  const surface = ellipsoid.cartographicToCartesian(new Cartographic(carto.longitude, carto.latitude, 0))
+  const normal = Cartesian3.normalize(surface, new Cartesian3())
+  const safePos = Cartesian3.add(
+    surface,
+    Cartesian3.multiplyByScalar(normal, MIN_HEIGHT_ABOVE_ELLIPSOID, new Cartesian3()),
+    new Cartesian3()
+  )
+  Cartesian3.clone(safePos, camera.position)
+}
+
+/**
+ * Sets up wheel listener and preRender height enforcement.
  * Call once after viewer creation. Uses current viewMode from applyCameraConstraints.
  */
 export function setupZoomClampListener(viewer: Viewer): () => void {
@@ -133,9 +166,15 @@ export function setupZoomClampListener(viewer: Viewer): () => void {
     scheduleClampCheck(viewer)
   }
 
+  const onPreRender = () => {
+    enforceMinHeight(viewer)
+  }
+
   canvas.addEventListener('wheel', onWheel, { passive: true })
+  viewer.scene.preRender.addEventListener(onPreRender)
 
   return () => {
     canvas.removeEventListener('wheel', onWheel)
+    viewer.scene.preRender.removeEventListener(onPreRender)
   }
 }
