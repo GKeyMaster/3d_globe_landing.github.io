@@ -13,12 +13,14 @@ export function CreditsPill() {
   }, [])
 
   return (
-    <div className="relative">
+    <div
+      className="relative"
+      onMouseEnter={() => setIsExpanded(true)}
+      onMouseLeave={() => setIsExpanded(false)}
+    >
       {/* Credits Button */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        onMouseEnter={() => setIsExpanded(true)}
-        onMouseLeave={() => setIsExpanded(false)}
         className="glass-panel-subtle interactive"
         style={{
           padding: 'var(--space-2) var(--space-3)',
