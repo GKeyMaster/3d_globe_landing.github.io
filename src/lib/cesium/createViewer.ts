@@ -6,7 +6,8 @@ import {
   WebMercatorTilingScheme,
   Credit,
   ConstantProperty,
-  ScreenSpaceEventType
+  ScreenSpaceEventType,
+  SunLight
 } from 'cesium'
 import type { ImageryLayer } from 'cesium'
 
@@ -124,9 +125,16 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
   }
   requestAnimationFrame(renderLoop)
 
+  // Night side / day-night terminator shading (tokenless)
+  viewer.scene.globe.enableLighting = true
+  viewer.scene.light = new SunLight()
+  viewer.scene.skyAtmosphere.show = true
+  const globe = viewer.scene.globe as Record<string, unknown>
+  if ('dynamicAtmosphereLighting' in globe) globe.dynamicAtmosphereLighting = true
+  if ('dynamicAtmosphereLightingFromSun' in globe) globe.dynamicAtmosphereLightingFromSun = true
+
   // Premium atmosphere settings (tokenless)
   viewer.scene.globe.show = true
-  viewer.scene.skyAtmosphere.show = true
   viewer.scene.fog.enabled = true
   viewer.scene.globe.showGroundAtmosphere = true
 
