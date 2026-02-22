@@ -357,7 +357,7 @@ export function Globe({
     const dest = Cartesian3.fromDegrees(selectedStop.lng, selectedStop.lat, 0)
     const dist = Cartesian3.distance(viewer.camera.positionWC, dest)
     const duration = Math.min(1.15, Math.max(0.45, dist / 3_500_000))
-    const range = 500
+    const range = 1000
     const offset = new HeadingPitchRange(
       CesiumMath.toRadians(0),
       CesiumMath.toRadians(-40),
