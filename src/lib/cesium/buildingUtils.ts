@@ -7,7 +7,7 @@ import {
   Ellipsoid,
 } from 'cesium'
 import type { Stop } from '../data/types'
-import { stableHash, getFacadeMaterial, getRoofMaterial } from './buildingTextures'
+import { stableHash, getFacadeMaterial, getRoofMaterial, ensureTexturesReady } from './buildingTextures'
 
 const MAX_BUILDINGS_PER_STOP = 500
 const DEBUG_BUILDINGS = true
@@ -120,6 +120,7 @@ export class BuildingManager {
     const ellipsoid = this.viewer.scene.globe.ellipsoid
 
     try {
+      await ensureTexturesReady()
       const response = await fetch(buildingUrl)
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
