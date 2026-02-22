@@ -15,7 +15,7 @@ import { RouteManager } from '../lib/cesium/addRoute'
 import { BuildingManager } from '../lib/cesium/buildingUtils'
 import { AutoRotateController, setOverviewCamera, removeOverviewConstraints, applyOverviewConstraints } from '../lib/cesium/autoRotate'
 import { applyVenueCameraLock, removeVenueCameraLock } from '../lib/cesium/venueCameraLock'
-import { enableVenueFog, disableVenueFog } from '../lib/cesium/venueFogStage'
+import { ensureVenueFog } from '../lib/cesium/venueFog'
 import { applyCameraConstraints, setupZoomClampListener } from '../lib/cesium/cameraConstraints'
 import { OVERVIEW_DISTANCE_MULTIPLIER } from '../lib/cesium/camera/overview'
 import { getEarthRadius, computeEarthCenteredPoseAboveLatLng } from '../lib/cesium/camera/poses'
@@ -53,6 +53,7 @@ export function Globe({
   const cameraManagerRef = useRef<PremiumCameraManager | null>(null)
   const routeManagerRef = useRef<RouteManager | null>(null)
   const buildingManagerRef = useRef<BuildingManager | null>(null)
+  const venueFogApiRef = useRef<ReturnType<typeof ensureVenueFog> | null>(null)
   const autoRotateControllerRef = useRef<AutoRotateController | null>(null)
   const zoomClampCleanupRef = useRef<(() => void) | null>(null)
   const initOnceRef = useRef(false)
@@ -191,6 +192,8 @@ export function Globe({
 
         // Initialize building manager
         buildingManagerRef.current = new BuildingManager(result.viewer)
+
+        venueFogApiRef.current = ensureVenueFog(result.viewer)
 
         // Initial view: above equator, on same meridian as first stop
         autoRotateControllerRef.current = new AutoRotateController(result.viewer)
@@ -338,17 +341,22 @@ export function Globe({
     }
   }, [viewMode, isReady])
 
-  // Venue fog: venue-centered depth-based post-process; scene.fog disabled to avoid double fog
+  // Venue fog: radial post-process; no fog 0–2000m; scene.fog disabled
   useEffect(() => {
-    if (!viewerRef.current || !isReady) return
+    if (!viewerRef.current || !isReady || !venueFogApiRef.current) return
+    viewerRef.current.scene.fog.enabled = false
+    const api = venueFogApiRef.current
     if (viewMode === 'venue' && selectedStopId && stops.length > 0) {
-      const selectedStop = stops.find((s) => s.id === selectedStopId)
-      if (selectedStop?.lat != null && selectedStop?.lng != null) {
-        const venueWC = Cartesian3.fromDegrees(selectedStop.lng, selectedStop.lat, 0)
-        enableVenueFog(viewerRef.current, venueWC, { startMeters: 2000, endMeters: 12000 })
+      const stop = stops.find((s) => s.id === selectedStopId)
+      if (stop?.lat != null && stop?.lng != null) {
+        api.setVenue(Cartesian3.fromDegrees(stop.lng, stop.lat))
+        api.setDistances(2000, 12000)
+        api.setEnabled(true)
+      } else {
+        api.setEnabled(false)
       }
     } else {
-      disableVenueFog(viewerRef.current)
+      api.setEnabled(false)
     }
     viewerRef.current.scene.requestRender()
   }, [viewMode, selectedStopId, stops, isReady])

@@ -1,24 +1,86 @@
 import type { Viewer } from 'cesium'
+import { PostProcessStage, Cartesian3 } from 'cesium'
 
-/** Venue fog: cinematic atmospheric haze, distance falloff at ~2000m. Uses scene lighting. */
-const VENUE_FOG_DENSITY = 0.0004 // Fog noticeable at ~2000m (exponential: 1 - exp(-d * dist))
-const VENUE_FOG_MINIMUM_BRIGHTNESS = 0.045
-const VENUE_FOG_VISUAL_DENSITY_SCALAR = 0.6 // Stronger visual effect
-const VENUE_FOG_MAX_HEIGHT = 10000 // Fog applies when camera below 10km (venue range)
+const FRAGMENT_SHADER = `
+uniform sampler2D colorTexture;
+uniform sampler2D depthTexture;
+uniform vec3 u_venueWC;
+uniform float u_fogStart;
+uniform float u_fogEnd;
+uniform vec3 u_fogColor;
+
+in vec2 v_textureCoordinates;
+
+void main() {
+  vec4 color = texture(colorTexture, v_textureCoordinates);
+  float depth = czm_readDepth(depthTexture, v_textureCoordinates);
+
+  if (depth >= 1.0) {
+    out_FragColor = color;
+    return;
+  }
+
+  vec2 xy = vec2((v_textureCoordinates.x * 2.0 - 1.0), ((1.0 - v_textureCoordinates.y) * 2.0 - 1.0));
+  vec4 posEC = czm_inverseProjection * vec4(xy, depth, 1.0);
+  posEC = posEC / posEC.w;
+
+  vec4 world = czm_inverseView * vec4(posEC.xyz, 1.0);
+  vec3 positionWC = world.xyz / world.w;
+
+  float d = distance(positionWC, u_venueWC);
+
+  float fogFactor = smoothstep(u_fogStart, u_fogEnd, d);
+  fogFactor = clamp(fogFactor, 0.0, 1.0);
+
+  vec3 rgb = mix(color.rgb, u_fogColor, fogFactor);
+  out_FragColor = vec4(rgb, color.a);
+}
+`
+
+let stage: PostProcessStage | null = null
+let venueWCRef: Cartesian3 | null = null
+let fogStartRef = 2000.0
+let fogEndRef = 12000.0
+
+const FOG_COLOR = new Cartesian3(0.04, 0.06, 0.09)
+
+export interface VenueFogAPI {
+  setEnabled: (enabled: boolean) => void
+  setVenue: (positionWC: Cartesian3 | null) => void
+  setDistances: (start: number, end: number) => void
+}
 
 /**
- * Toggles fog based on view mode. Venue = enabled (atmospheric depth); overview = disabled.
+ * Creates (or returns) the venue-centered radial fog PostProcessStage.
+ * Fog starts at u_fogStart (2000m), no fog inside 0–2000m.
  */
-export function applyVenueFog(viewer: Viewer, viewMode: 'overview' | 'venue'): void {
-  const fog = viewer.scene.fog
+export function ensureVenueFog(viewer: Viewer): VenueFogAPI {
+  if (!stage) {
+    stage = viewer.scene.postProcessStages.add(
+      new PostProcessStage({
+        name: 'venueRadialFog',
+        fragmentShader: FRAGMENT_SHADER,
+        uniforms: {
+          u_venueWC: () => venueWCRef ?? Cartesian3.ZERO,
+          u_fogStart: () => fogStartRef,
+          u_fogEnd: () => fogEndRef,
+          u_fogColor: FOG_COLOR,
+        },
+      })
+    )
+    stage.enabled = false
+  }
 
-  if (viewMode === 'venue') {
-    fog.enabled = true
-    fog.density = VENUE_FOG_DENSITY
-    fog.minimumBrightness = VENUE_FOG_MINIMUM_BRIGHTNESS
-    fog.visualDensityScalar = VENUE_FOG_VISUAL_DENSITY_SCALAR
-    fog.maxHeight = VENUE_FOG_MAX_HEIGHT
-  } else {
-    fog.enabled = false
+  return {
+    setEnabled(enabled: boolean) {
+      if (stage) stage.enabled = enabled
+    },
+    setVenue(positionWC: Cartesian3 | null) {
+      venueWCRef = positionWC
+    },
+    setDistances(start: number, end: number) {
+      fogStartRef = start
+      fogEndRef = end
+    },
   }
 }

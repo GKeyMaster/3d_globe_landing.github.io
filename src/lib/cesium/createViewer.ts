@@ -7,8 +7,7 @@ import {
   Credit,
   ConstantProperty,
   ScreenSpaceEventType,
-  DirectionalLight,
-  Cartesian3,
+  SunLight
 } from 'cesium'
 import type { ImageryLayer } from 'cesium'
 import { addNightLightsLayer } from './imagery/nightLights'
@@ -130,32 +129,21 @@ export async function createViewer(container: HTMLElement, creditContainer?: HTM
   }
   requestAnimationFrame(renderLoop)
 
-  // No shadows, stable lighting for venue buildings
-  viewer.shadows = false
-  viewer.scene.shadowMap.enabled = false
-  viewer.scene.globe.enableLighting = false
+  // Night side / day-night terminator shading (tokenless)
+  viewer.scene.globe.enableLighting = true
+  viewer.scene.light = new SunLight()
   viewer.scene.skyAtmosphere.show = true
   const globe = viewer.scene.globe as Record<string, unknown>
   if ('dynamicAtmosphereLighting' in globe) globe.dynamicAtmosphereLighting = true
   if ('dynamicAtmosphereLightingFromSun' in globe) globe.dynamicAtmosphereLightingFromSun = true
-
-  // Stable directional light (not sun-based)
-  viewer.scene.light = new DirectionalLight({
-    direction: Cartesian3.normalize(new Cartesian3(0.3, 0.35, -1.0), new Cartesian3()),
-  })
 
   // Premium atmosphere settings (tokenless)
   viewer.scene.globe.show = true
   viewer.scene.fog.enabled = false
   viewer.scene.globe.showGroundAtmosphere = true
 
+  // Premium globe visual settings
   viewer.scene.highDynamicRange = true
-  const scene = viewer.scene as unknown as { colorCorrection?: { show: boolean; brightness: number; contrast: number } }
-  if (scene.colorCorrection) {
-    scene.colorCorrection.show = true
-    scene.colorCorrection.brightness = 1.15
-    scene.colorCorrection.contrast = 1.05
-  }
   viewer.scene.globe.maximumScreenSpaceError = 1.2 // Higher quality
   
   // Enable FXAA anti-aliasing
