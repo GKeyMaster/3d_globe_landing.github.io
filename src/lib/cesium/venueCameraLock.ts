@@ -15,7 +15,7 @@ const CONTROLLER_DEFAULTS = {
 export function applyVenueCameraLock(viewer: Viewer, entity: Entity): void {
   const controller = viewer.scene.screenSpaceCameraController
 
-  controller.enableCollisionDetection = false
+  controller.enableCollisionDetection = true
   viewer.trackedEntity = entity
   controller.enableTranslate = false
   controller.enableLook = false
@@ -39,7 +39,6 @@ export function removeVenueCameraLock(viewer: Viewer): void {
   }
 
   viewer.trackedEntity = undefined
-  controller.enableCollisionDetection = true
   controller.enableTranslate = CONTROLLER_DEFAULTS.enableTranslate
   controller.enableLook = CONTROLLER_DEFAULTS.enableLook
   controller.enableTilt = CONTROLLER_DEFAULTS.enableTilt
